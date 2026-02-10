@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Budget Perso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f4f8;
+            --card: #ffffff;
+            --shadow: 0 4px 20px rgba(0,0,0,0.08);
+            
+            --blue: #2563eb;
+            --blue-dark: #1d4ed8;
+            --orange: #ea580c;
+            --orange-dark: #c2410c;
+            --purple: #7c3aed;
+            --purple-dark: #6d28d9;
+            --green: #16a34a;
+            --green-dark: #15803d;
+            --red: #dc2626;
+            --yellow: #eab308;
+            --cyan: #0891b2;
+            --pink: #db2777;
+            
+            --text: #1e293b;
+            --text2: #64748b;
+            --border: #e2e8f0;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Sora', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: linear-gradient(135deg, var(--blue), var(--purple));
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .btns { display: flex; gap: 8px; }
+        
+        .btn {
+            padding: 8px 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.15);
+            font-family: 'Sora', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+        }
+        .btn:hover { background: rgba(255,255,255,0.25); }
+        .btn.primary { background: white; color: var(--blue); border-color: white; }
+
+        /* Tous les rectangles - grille 2 colonnes */
+        .all-boxes {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            padding: 12px;
+            background: white;
+        }
+        .sum-box {
+            padding: 14px 12px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        .sum-box.brut { background: #64748b; }
+        .sum-box.net-avant { background: var(--yellow); }
+        .sum-box.ir-box { background: var(--pink); }
+        .sum-box.sal { background: var(--yellow); }
+        .sum-box.cm { background: var(--blue); }
+        .sum-box.rev { background: var(--orange); }
+        .sum-box.ponct { background: var(--purple); }
+        .sum-box.total-rec { background: #64748b; }
+        .sum-box.rest { background: var(--green); }
+        .sum-box.rest.neg { background: var(--red); }
+        .sum-label { font-size: 0.65rem; color: white; text-transform: uppercase; font-weight: 700; opacity: 0.9; margin-bottom: 6px; }
+        .sum-val { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 1.2rem; color: white; }
+        .sum-input {
+            width: 100%;
+            border: none;
+            background: rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 8px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: white;
+            text-align: center;
+        }
+        .sum-input::placeholder { color: rgba(255,255,255,0.5); }
+        .sum-input:focus { outline: none; background: rgba(255,255,255,0.3); }
+        .sum-input::-webkit-inner-spin-button { display: none; }
+        .ir-inputs {
+            display: flex;
+            gap: 6px;
+        }
+        .ir-inputs .sum-input { flex: 2; }
+        .ir-inputs .sum-input.small { flex: 1; font-size: 0.9rem; }
+
+        /* Suivi section - remonté */
+        .suivi-section {
+            padding: 12px;
+            background: var(--bg);
+        }
+        .suivi-title { 
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+        .suivi-cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        .suivi-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        .suivi-card .suivi-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            color: white;
+        }
+        .suivi-card.rev .suivi-head { background: var(--orange); }
+        .suivi-card.cm .suivi-head { background: var(--blue); }
+        .suivi-card-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.9rem; color: white; }
+        .solde-val { font-family: 'Space Grotesk', sans-serif; font-size: 1.1rem; font-weight: 700; color: white; }
+        
+        .suivi-body { padding: 10px; }
+        .suivi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .field label { display: block; font-size: 0.6rem; color: var(--text2); text-transform: uppercase; margin-bottom: 3px; font-weight: 600; }
+        .field input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 12px;
+        }
+        .field input.big-input {
+            font-size: 1.2rem;
+            font-weight: 700;
+            padding: 10px;
+        }
+        .field input:focus { outline: none; border-color: var(--blue); }
+        .field-full { margin-top: 8px; }
+        .field-full input { font-family: 'Sora', sans-serif; }
+        .last-op {
+            font-size: 0.7rem;
+            color: var(--text2);
+            margin-top: 4px;
+            font-style: italic;
+        }
+        .last-op strong { color: var(--text); }
+
+        .att-section { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+        .att-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .att-title { font-size: 0.65rem; font-weight: 700; color: var(--text2); text-transform: uppercase; }
+        .att-add {
+            padding: 4px 10px;
+            border: 1px dashed var(--border);
+            border-radius: 5px;
+            background: transparent;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .att-add:hover { border-color: var(--blue); color: var(--blue); }
+        .btn-apply {
+            padding: 2px 6px;
+            border: none;
+            border-radius: 4px;
+            background: var(--green);
+            color: white;
+            font-size: 0.55rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        .btn-apply:hover { background: var(--green-dark); }
+        .att-row { display: grid; grid-template-columns: 70px 1fr 24px; gap: 5px; margin-bottom: 6px; }
+        .att-row input { padding: 6px; border: 1px solid var(--border); border-radius: 5px; font-size: 0.8rem; }
+        .att-row input.num { font-family: 'Space Grotesk', sans-serif; text-align: right; }
+        .att-del { border: none; background: #fee2e2; color: var(--red); border-radius: 5px; cursor: pointer; }
+        .att-del:hover { background: var(--red); color: white; }
+        .att-empty { color: var(--text2); font-size: 0.8rem; text-align: center; padding: 8px; }
+
+        /* Month selector */
+        .month-selector {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px;
+            background: white;
+            border-bottom: 1px solid var(--border);
+        }
+        .month-nav {
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 50%;
+            background: var(--blue);
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .month-nav:hover { background: var(--blue-dark); }
+        .month-name {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 700;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        /* Budget table */
+        .budget-section { 
+            padding: 12px;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .section-header {
+            padding: 10px 12px;
+            border-radius: 10px 10px 0 0;
+            font-family: 'Space Grotesk', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .section-header.salaire { background: var(--yellow); }
+        .section-header.cm { background: var(--blue); }
+        .section-header.rev { background: var(--orange); }
+        .section-header.ponct { background: var(--purple); }
+        
+        .section-content {
+            background: white;
+            border-radius: 0 0 10px 10px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+        
+        .budget-row {
+            display: grid;
+            grid-template-columns: 1fr 90px 50px 60px;
+            gap: 8px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+        }
+        .budget-row:last-child { border-bottom: none; }
+        
+        .row-label {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .row-name {
+            font-weight: 700;
+            font-size: 0.85rem;
+            color: white;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+            display: inline-block;
+        }
+        .row-name:hover { opacity: 0.9; }
+        
+        /* Fonds colorés selon section */
+        .budget-row.salaire .row-name { background: var(--yellow); }
+        .budget-row.cm .row-name { background: var(--blue); }
+        .budget-row.rev .row-name { background: var(--orange); }
+        .budget-row.ponct .row-name { background: var(--purple); }
+        .row-name-input {
+            font-family: 'Sora', sans-serif;
+            font-weight: 700;
+            font-size: 0.85rem;
+            border: 2px solid white;
+            border-radius: 6px;
+            padding: 4px 8px;
+            width: 100%;
+            color: white;
+            background: rgba(255,255,255,0.2);
+        }
+        .row-name-input:focus { outline: none; background: rgba(255,255,255,0.3); }
+        .row-name-input.salaire { background: var(--yellow); }
+        .row-name-input.cm { background: var(--blue); }
+        .row-name-input.rev { background: var(--orange); }
+        .row-name-input.ponct { background: var(--purple); }
+        .row-comment {
+            font-size: 0.65rem;
+            color: var(--text2);
+            font-style: italic;
+            cursor: pointer;
+            padding: 1px 4px;
+            margin: -1px -4px;
+            border-radius: 3px;
+        }
+        .row-comment:hover { background: #f1f5f9; }
+        .row-comment:empty::before {
+            content: '+ commentaire';
+            opacity: 0.5;
+        }
+        .row-comment-input {
+            font-family: 'Sora', sans-serif;
+            font-size: 0.65rem;
+            font-style: italic;
+            border: 1px solid var(--blue);
+            border-radius: 3px;
+            padding: 1px 4px;
+            width: 100%;
+        }
+        
+        .row-amount input {
+            width: 100%;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-align: right;
+        }
+        .row-amount input:focus { outline: none; border-color: var(--blue); }
+        
+        .row-check {
+            display: flex;
+            justify-content: center;
+        }
+        .row-check input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            width: 28px;
+            height: 28px;
+            border: 2px solid #cbd5e1;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        .row-check input[type="checkbox"]:checked {
+            background: var(--green);
+            border-color: var(--green);
+        }
+        .row-check input[type="checkbox"]:checked::after {
+            content: '✓';
+            display: block;
+            text-align: center;
+            color: white;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 24px;
+        }
+        
+        .row-actions {
+            display: flex;
+            gap: 3px;
+            justify-content: center;
+        }
+        .btn-move, .btn-del {
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-move { background: #f1f5f9; color: var(--text2); }
+        .btn-move:hover { background: var(--blue); color: white; }
+        .btn-del { background: #fee2e2; color: var(--red); }
+        .btn-del:hover { background: var(--red); color: white; }
+
+        /* Add row */
+        .add-row {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px;
+            background: #fafafa;
+            border-radius: 0 0 10px 10px;
+        }
+        .add-input {
+            flex: 1;
+            border: 1px dashed #cbd5e1;
+            border-radius: 6px;
+            padding: 8px 10px;
+            font-family: 'Sora', sans-serif;
+            font-size: 0.8rem;
+        }
+        .add-input:focus { outline: none; border-color: var(--blue); border-style: solid; }
+        .btn-add {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            background: var(--blue);
+            color: white;
+            font-family: 'Sora', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        /* Section total */
+        .section-total {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.05);
+            font-weight: 700;
+            font-size: 0.85rem;
+            border-radius: 0 0 10px 10px;
+        }
+        .section-total span:last-child {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Section IR */
+        .ir-section {
+            margin: 0 12px 12px;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .ir-header { background: var(--cyan); padding: 10px 14px; }
+        .ir-title { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 0.85rem; color: white; }
+        .ir-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        .ir-table th, .ir-table td { border: 1px solid var(--border); padding: 8px 6px; text-align: center; }
+        .ir-table th { background: #f0fdfa; color: var(--cyan); font-weight: 700; }
+        .ir-table td { background: white; }
+        .ir-table .ir-rbt.pos { color: var(--green); font-weight: 700; }
+        .ir-table .ir-rbt.neg { color: var(--red); font-weight: 700; }
+        .ir-table tbody tr:nth-child(5n+1) td { background: #f0abfc; }
+        .ir-table tbody tr:nth-child(5n+2) td { background: #a5f3fc; }
+        .ir-table tbody tr:nth-child(5n+3) td { background: #fef08a; }
+        .ir-table tbody tr:nth-child(5n+4) td { background: #fed7aa; }
+        .ir-table tbody tr:nth-child(5n+5) td { background: #e9d5ff; }
+        .ir-add-row { padding: 10px; display: flex; gap: 5px; flex-wrap: wrap; background: #f8fafc; }
+        .ir-add-row input { padding: 6px; border: 1px solid var(--border); border-radius: 5px; font-size: 11px; width: 60px; }
+        .ir-add-row input[type="text"] { width: 80px; }
+
+        /* Sync info */
+        .sync-info {
+            margin: 12px auto;
+            padding: 12px;
+            background: #eff6ff;
+            border-radius: 10px;
+            border-left: 4px solid var(--blue);
+            max-width: 700px;
+        }
+        .sync-info-title { font-weight: 700; font-size: 0.85rem; color: var(--blue); margin-bottom: 6px; }
+        .sync-info p { font-size: 0.75rem; color: var(--text2); margin-bottom: 4px; }
+
+        /* Welcome */
+        .welcome {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, var(--blue), var(--purple));
+        }
+        .welcome h1 { font-size: 1.8rem; margin-bottom: 10px; color: white; }
+        .welcome p { color: rgba(255,255,255,0.8); margin-bottom: 30px; }
+        .welcome-btns { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 280px; }
+        .welcome-btn {
+            padding: 16px 24px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.1);
+            font-family: 'Sora', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+        }
+        .welcome-btn.main { background: white; color: var(--blue); border-color: white; }
+
+        /* Mobile */
+        @media (max-width: 500px) {
+            .all-boxes { gap: 10px; padding: 12px; }
+            .sum-box { padding: 16px 12px; }
+            .sum-label { font-size: 0.7rem; }
+            .sum-val { font-size: 1.3rem; }
+            .sum-input { font-size: 1.2rem; padding: 10px; }
+            .ir-inputs .sum-input { font-size: 1rem; }
+            .ir-inputs .sum-input.small { font-size: 0.9rem; }
+            .suivi-cards { grid-template-columns: 1fr; }
+            .budget-row { grid-template-columns: 1fr 80px 40px 50px; gap: 6px; padding: 8px 10px; }
+            .row-name { font-size: 0.8rem; }
+            .row-amount input { padding: 6px; font-size: 0.85rem; }
+            .row-check input[type="checkbox"] { width: 24px; height: 24px; }
+            .btn-move, .btn-del { width: 20px; height: 20px; font-size: 10px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="welcome" class="welcome">
+    <h1>💰 Budget Perso</h1>
+    <p>Ton suivi budgétaire mensuel</p>
+    <div class="welcome-btns">
+        <button class="welcome-btn main" onclick="start()">Commencer</button>
+        <button class="welcome-btn" onclick="openFile()">Ouvrir un fichier</button>
+    </div>
+    <input type="file" id="fileIn" accept=".json" style="display:none" onchange="loadFile(event)">
+</div>
+
+<div id="app" style="display:none;">
+    <div class="header">
+        <h1>💰 Budget Perso</h1>
+        <div class="btns">
+            <button class="btn" onclick="openFile()">Ouvrir</button>
+            <button class="btn primary" onclick="saveFile()">Sauvegarder</button>
+        </div>
+    </div>
+
+    <!-- Tous les rectangles réorganisés en 5 lignes de 2 -->
+    <div class="all-boxes">
+        <!-- Ligne 1 : Salaire brut / Salaire net avant IR -->
+        <div class="sum-box brut">
+            <div class="sum-label">Salaire brut</div>
+            <input type="number" class="sum-input" id="salaireBrut" placeholder="0" oninput="updInfo()">
+        </div>
+        <div class="sum-box net-avant">
+            <div class="sum-label">Salaire net avant IR</div>
+            <input type="number" class="sum-input" id="salaireNetAvantIR" placeholder="0" oninput="updInfo()">
+        </div>
+        
+        <!-- Ligne 2 : Impôt (IR) / Salaire net -->
+        <div class="sum-box ir-box">
+            <div class="sum-label">Impôt (IR)</div>
+            <div class="ir-inputs">
+                <input type="number" class="sum-input" id="irMontant" placeholder="0" oninput="updInfo()">
+                <input type="number" class="sum-input small" id="irPourcent" placeholder="%">
+            </div>
+        </div>
+        <div class="sum-box sal">
+            <div class="sum-label">Salaire net</div>
+            <div class="sum-val" id="sumSal">0 €</div>
+        </div>
+        
+        <!-- Ligne 3 : Charges CM / Charges Revolut -->
+        <div class="sum-box cm">
+            <div class="sum-label">Charges CM</div>
+            <div class="sum-val" id="sumCM">0 €</div>
+        </div>
+        <div class="sum-box rev">
+            <div class="sum-label">Charges Revolut</div>
+            <div class="sum-val" id="sumRev">0 €</div>
+        </div>
+        
+        <!-- Ligne 4 : Charges ponctuelles / Total charges récurrent -->
+        <div class="sum-box ponct">
+            <div class="sum-label">Charges ponctuelles</div>
+            <div class="sum-val" id="sumPonct">0 €</div>
+        </div>
+        <div class="sum-box total-rec">
+            <div class="sum-label">Total charges récurrent</div>
+            <div class="sum-val" id="sumTotalRec">0 €</div>
+        </div>
+        
+        <!-- Ligne 5 : Reste/mois / Reste/an -->
+        <div class="sum-box rest" id="sumRestBox">
+            <div class="sum-label">Reste/mois</div>
+            <div class="sum-val" id="sumRest">0 €</div>
+        </div>
+        <div class="sum-box rest" id="sumRestYearBox">
+            <div class="sum-label">Reste/an</div>
+            <div class="sum-val" id="sumRestYear">0 €</div>
+        </div>
+    </div>
+
+    <!-- Suivi comptes (remonté) -->
+    <div class="suivi-section">
+        <div class="suivi-title">📊 Suivi des comptes</div>
+        <div class="suivi-cards">
+            <div class="suivi-card rev">
+                <div class="suivi-head">
+                    <span class="suivi-card-title">Revolut</span>
+                    <span class="solde-val" id="dispRev">0 €</span>
+                </div>
+                <div class="suivi-body">
+                    <div class="suivi-grid">
+                        <div class="field">
+                            <label>Solde actuel</label>
+                            <input type="number" class="big-input" id="revSolde" oninput="updSuiviRev()">
+                        </div>
+                        <div class="field">
+                            <label>Nouvelle op. <button class="btn-apply" onclick="applyRevOp()">Appliquer</button></label>
+                            <input type="number" id="revLast" placeholder="- dépense / + entrée">
+                            <div class="last-op" id="revLastOp"></div>
+                        </div>
+                    </div>
+                    <div class="field-full">
+                        <label>Description</label>
+                        <input type="text" id="revDesc" oninput="updSuiviRev()">
+                    </div>
+                </div>
+            </div>
+
+            <div class="suivi-card cm">
+                <div class="suivi-head">
+                    <span class="suivi-card-title">Crédit Mutuel</span>
+                    <span class="solde-val" id="dispCM">0 €</span>
+                </div>
+                <div class="suivi-body">
+                    <div class="suivi-grid">
+                        <div class="field">
+                            <label>Solde affiché</label>
+                            <input type="number" class="big-input" id="cmSolde" oninput="updSuiviCM()">
+                        </div>
+                        <div class="field">
+                            <label>Nouvelle op. <button class="btn-apply" onclick="applyCMOp()">Appliquer</button></label>
+                            <input type="number" id="cmLast" placeholder="- dépense / + entrée">
+                            <div class="last-op" id="cmLastOp"></div>
+                        </div>
+                    </div>
+                    <div class="att-section">
+                        <div class="att-head">
+                            <span class="att-title">En attente d'encaissement</span>
+                            <button class="att-add" onclick="addAtt()">+ Ajouter</button>
+                        </div>
+                        <div id="attList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month selector -->
+    <div class="month-selector">
+        <button class="month-nav" onclick="changeMonth(-1)">‹</button>
+        <span class="month-name" id="monthName">Janvier</span>
+        <button class="month-nav" onclick="changeMonth(1)">›</button>
+    </div>
+
+    <!-- Budget sections -->
+    <div class="budget-section" id="budgetSection"></div>
+
+    <!-- Section IR -->
+    <div class="ir-section">
+        <div class="ir-header">
+            <span class="ir-title">🧾 Historique Impôt sur le Revenu</span>
+        </div>
+        <table class="ir-table">
+            <thead>
+                <tr><th>Année</th><th>Revenus</th><th>Montant</th><th>Remb.</th><th>Note</th><th>⚙</th></tr>
+            </thead>
+            <tbody id="irBody"></tbody>
+        </table>
+        <div class="ir-add-row">
+            <input type="number" id="irAddAnnee" placeholder="Année">
+            <input type="number" id="irAddRevenus" placeholder="Rev.">
+            <input type="number" id="irAddMontant" placeholder="IR">
+            <input type="number" id="irAddRbt" placeholder="Rbt">
+            <input type="text" id="irAddNote" placeholder="Note...">
+            <button class="btn-add" onclick="addIR()">+</button>
+        </div>
+    </div>
+
+    <!-- Sync info -->
+    <div class="sync-info">
+        <div class="sync-info-title">📱 Synchronisation PC ↔ Mobile</div>
+        <p><strong>1.</strong> Sauvegarde dans ton dossier Google Drive (ou Dropbox)</p>
+        <p><strong>2.</strong> Sur l'autre appareil, ouvre le même fichier JSON</p>
+        <p><strong>3.</strong> Sauvegarde après chaque modif pour garder la synchro</p>
+        <p>⚠️ Ne pas modifier sur 2 appareils en même temps sans sauvegarder entre</p>
+    </div>
+</div>
+
+<script>
+const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+
+const DEFAULT_DATA = {
+    info: { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 },
+    rows: [
+        { id: 'salaire', name: 'Salaire net', section: 'salaire', amount: 0, comment: '', checked: Array(12).fill(false) },
+        { id: 'smci_loyer', name: 'SMCI loyer', section: 'cm', amount: 757.80, comment: '', checked: Array(12).fill(false) },
+        { id: 'smci_charges', name: 'SMCI charges', section: 'cm', amount: 120, comment: '', checked: Array(12).fill(false) },
+        { id: 'garage_loyer', name: 'Garage loyer', section: 'cm', amount: 101.04, comment: '', checked: Array(12).fill(false) },
+        { id: 'garage_charges', name: 'Garage charges', section: 'cm', amount: 30, comment: '', checked: Array(12).fill(false) },
+        { id: 'parking_voirie', name: 'Parking voirie', section: 'cm', amount: 48.69, comment: '', checked: Array(12).fill(false) },
+        { id: 'maif', name: 'Maif', section: 'cm', amount: 109.32, comment: 'pas en mai ni décembre', checked: Array(12).fill(false) },
+        { id: 'acoris', name: 'Acoris', section: 'cm', amount: 154.05, comment: '', checked: Array(12).fill(false) },
+        { id: 'edf', name: 'EDF (le 18)', section: 'cm', amount: 39.49, comment: 'pas en octobre', checked: Array(12).fill(false) },
+        { id: 'cm_cotisation', name: 'CM cotisation', section: 'cm', amount: 22.92, comment: '', checked: Array(12).fill(false) },
+        { id: 'orange_internet', name: 'Orange internet (27→7)', section: 'cm', amount: 62.98, comment: '', checked: Array(12).fill(false) },
+        { id: 'orange_mobile', name: 'Orange mobile (15→26)', section: 'cm', amount: 33.99, comment: '', checked: Array(12).fill(false) },
+        { id: 'snatch', name: 'Snatch', section: 'cm', amount: 45, comment: '', checked: Array(12).fill(false) },
+        { id: 'prime_video', name: 'Prime vidéo', section: 'cm', amount: 1.99, comment: '', checked: Array(12).fill(false) },
+        { id: 'chatgpt', name: 'ChatGPT Plus (le 11)', section: 'cm', amount: 23, comment: '', checked: Array(12).fill(false) },
+        { id: 'proteines', name: 'Protéines', section: 'rev', amount: 50, comment: '', checked: Array(12).fill(false) },
+        { id: 'kdo', name: 'Cadeaux', section: 'rev', amount: 30, comment: '', checked: Array(12).fill(false) },
+        { id: 'kia', name: 'Kia (nettoyage)', section: 'rev', amount: 25, comment: '', checked: Array(12).fill(false) },
+        { id: 'alimentation', name: 'Alimentation', section: 'rev', amount: 505, comment: '', checked: Array(12).fill(false) },
+        { id: 'pharmacie', name: 'Pharmacie', section: 'rev', amount: 60, comment: '', checked: Array(12).fill(false) },
+        { id: 'essence', name: 'Essence', section: 'rev', amount: 75, comment: '', checked: Array(12).fill(false) },
+        { id: 'coiffeur', name: 'Coiffeur', section: 'rev', amount: 28, comment: '', checked: Array(12).fill(false) },
+        { id: 'parking', name: 'Parking', section: 'rev', amount: 23, comment: '', checked: Array(12).fill(false) },
+        { id: 'divers', name: 'Divers (Flunch)', section: 'rev', amount: 75, comment: '', checked: Array(12).fill(false) },
+        { id: 'revolut_virement', name: 'Virement Revolut (le 25)', section: 'rev', amount: 3.99, comment: '', checked: Array(12).fill(false) },
+        { id: 'google_ai', name: 'Google AI Pro (le 6)', section: 'rev', amount: 21.99, comment: '', checked: Array(12).fill(false) },
+        { id: 'claude', name: 'Claude Anthropic (le 8)', section: 'rev', amount: 21.6, comment: '', checked: Array(12).fill(false) },
+        { id: 'cigares', name: 'Cigares', section: 'rev', amount: 195, comment: '', checked: Array(12).fill(false) },
+        { id: 'telephone', name: 'Téléphone', section: 'ponct', amount: 0, comment: '', checked: Array(12).fill(false) },
+        { id: 'amazon', name: 'Amazon Prime', section: 'ponct', amount: 69.9, comment: '', checked: Array(12).fill(false) },
+        { id: 'controle_tech', name: 'Contrôle technique', section: 'ponct', amount: 80, comment: '', checked: Array(12).fill(false) },
+        { id: 'norton', name: 'Norton 360', section: 'ponct', amount: 17, comment: '', checked: Array(12).fill(false) },
+        { id: 'proton', name: 'Proton', section: 'ponct', amount: 61, comment: '', checked: Array(12).fill(false) },
+    ],
+    suivi: {
+        rev: { solde: 569.47, last: 0, desc: '' },
+        cm: { soldeAffiche: 1877.17, last: 131.04, att: [{ val: 23, desc: 'ChatGPT' }] }
+    },
+    ir: [
+        { annee: 2021, revenus: 2020, montant: 4166, remboursement: 343, note: 'Rbt été 2021' },
+        { annee: 2022, revenus: 2021, montant: 4641, remboursement: 139, note: 'Rbt été 2022' },
+        { annee: 2023, revenus: 2022, montant: 4581, remboursement: 62, note: 'Rbt été 2023' },
+        { annee: 2024, revenus: 2023, montant: 4707, remboursement: 177, note: 'Rbt été 2024' },
+        { annee: 2025, revenus: 2024, montant: 4705, remboursement: -369, note: 'Je redonne été 2025' }
+    ]
+};
+
+let D = JSON.parse(JSON.stringify(DEFAULT_DATA));
+let curMonth = new Date().getMonth();
+let fileHandle = null;
+
+function start() {
+    document.getElementById('welcome').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    render();
+}
+
+function render() {
+    renderInfo();
+    renderSuivi();
+    renderBudget();
+    renderIR();
+    calcTotals();
+}
+
+function renderInfo() {
+    document.getElementById('salaireBrut').value = D.info?.brut || '';
+    document.getElementById('salaireNetAvantIR').value = D.info?.netAvantIR || '';
+    document.getElementById('irMontant').value = D.info?.irMontant || '';
+    document.getElementById('irPourcent').value = D.info?.irPourcent || '';
+}
+
+function updInfo() {
+    if (!D.info) D.info = {};
+    D.info.brut = parseFloat(document.getElementById('salaireBrut').value) || 0;
+    D.info.netAvantIR = parseFloat(document.getElementById('salaireNetAvantIR').value) || 0;
+    D.info.irMontant = parseFloat(document.getElementById('irMontant').value) || 0;
+    D.info.irPourcent = parseFloat(document.getElementById('irPourcent').value) || 0;
+    save();
+}
+
+function changeMonth(dir) {
+    curMonth = (curMonth + dir + 12) % 12;
+    document.getElementById('monthName').textContent = MONTHS[curMonth];
+    renderBudget();
+}
+
+function renderBudget() {
+    document.getElementById('monthName').textContent = MONTHS[curMonth];
+    const container = document.getElementById('budgetSection');
+    let html = '';
+
+    const sections = [
+        { key: 'salaire', label: '💵 SALAIRE', class: 'salaire' },
+        { key: 'cm', label: '🔵 CRÉDIT MUTUEL', class: 'cm' },
+        { key: 'rev', label: '🟠 REVOLUT', class: 'rev' },
+        { key: 'ponct', label: '🟣 PONCTUELLES (annuelles)', class: 'ponct' }
+    ];
+
+    sections.forEach(sec => {
+        const rows = D.rows.filter(r => r.section === sec.key);
+        const total = rows.reduce((s, r) => s + (r.amount || 0), 0);
+
+        html += `<div class="section-header ${sec.class}">${sec.label}<span id="sec-total-${sec.key}">${fmt(total)}</span></div>`;
+        html += `<div class="section-content">`;
+
+        rows.forEach(row => {
+            const chk = row.checked[curMonth];
+            html += `
+                <div class="budget-row ${sec.key}" data-id="${row.id}">
+                    <div class="row-label">
+                        <span class="row-name" onclick="editName('${row.id}')" id="name-${row.id}">${row.name}</span>
+                        <span class="row-comment" onclick="editComment('${row.id}')" id="comment-${row.id}">${row.comment || ''}</span>
+                    </div>
+                    <div class="row-amount">
+                        <input type="number" value="${row.amount || ''}" step="0.01" placeholder="0"
+                               onchange="updAmount('${row.id}', this.value)">
+                    </div>
+                    <div class="row-check">
+                        <input type="checkbox" ${chk ? 'checked' : ''} onchange="updCheck('${row.id}', this.checked)">
+                    </div>
+                    <div class="row-actions">
+                        ${sec.key !== 'salaire' ? `
+                            <button class="btn-move" onclick="moveRow('${row.id}', -1)">↑</button>
+                            <button class="btn-move" onclick="moveRow('${row.id}', 1)">↓</button>
+                            <button class="btn-del" onclick="delRow('${row.id}')">×</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        });
+
+        if (sec.key !== 'salaire') {
+            html += `
+                <div class="add-row">
+                    <input type="text" class="add-input" id="add-${sec.key}" placeholder="+ Nouvelle ligne..."
+                           onkeypress="if(event.key==='Enter')addRow('${sec.key}')">
+                    <button class="btn-add" onclick="addRow('${sec.key}')">+</button>
+                </div>
+            `;
+        }
+
+        html += `</div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function editName(id) {
+    const span = document.getElementById(`name-${id}`);
+    const row = D.rows.find(r => r.id === id);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'row-name-input ' + row.section;
+    input.value = row.name;
+    input.onblur = () => { row.name = input.value; save(); renderBudget(); };
+    input.onkeypress = (e) => { if (e.key === 'Enter') input.blur(); };
+    span.replaceWith(input);
+    input.focus();
+    input.select();
+}
+
+function editComment(id) {
+    const span = document.getElementById(`comment-${id}`);
+    const row = D.rows.find(r => r.id === id);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'row-comment-input';
+    input.value = row.comment || '';
+    input.placeholder = 'Commentaire...';
+    input.onblur = () => { row.comment = input.value; save(); renderBudget(); };
+    input.onkeypress = (e) => { if (e.key === 'Enter') input.blur(); };
+    span.replaceWith(input);
+    input.focus();
+}
+
+function updAmount(id, value) {
+    const row = D.rows.find(r => r.id === id);
+    if (row) { row.amount = parseFloat(value) || 0; save(); calcTotals(); }
+}
+
+function updCheck(id, checked) {
+    const row = D.rows.find(r => r.id === id);
+    if (row) { row.checked[curMonth] = checked; save(); }
+}
+
+function addRow(section) {
+    const input = document.getElementById(`add-${section}`);
+    const name = input.value.trim();
+    if (!name) return;
+    const id = 'c' + Date.now();
+    const lastIdx = D.rows.map((r, i) => r.section === section ? i : -1).filter(i => i >= 0).pop();
+    const newRow = { id, name, section, amount: 0, comment: '', checked: Array(12).fill(false) };
+    if (lastIdx !== undefined) D.rows.splice(lastIdx + 1, 0, newRow);
+    else D.rows.push(newRow);
+    input.value = ''; save(); renderBudget(); calcTotals();
+}
+
+function delRow(id) {
+    if (confirm('Supprimer ?')) { D.rows = D.rows.filter(r => r.id !== id); save(); renderBudget(); calcTotals(); }
+}
+
+function moveRow(id, dir) {
+    const row = D.rows.find(r => r.id === id);
+    if (!row) return;
+    const sec = row.section;
+    const secRows = D.rows.filter(r => r.section === sec);
+    const idx = secRows.findIndex(r => r.id === id);
+    if (dir === -1 && idx === 0) return;
+    if (dir === 1 && idx === secRows.length - 1) return;
+    const gIdx = D.rows.findIndex(r => r.id === id);
+    const swapId = secRows[idx + dir].id;
+    const swapGIdx = D.rows.findIndex(r => r.id === swapId);
+    [D.rows[gIdx], D.rows[swapGIdx]] = [D.rows[swapGIdx], D.rows[gIdx]];
+    save(); renderBudget();
+}
+
+function calcTotals() {
+    const salaire = D.rows.find(r => r.section === 'salaire')?.amount || 0;
+    const totalCM = D.rows.filter(r => r.section === 'cm').reduce((s, r) => s + (r.amount || 0), 0);
+    const totalRev = D.rows.filter(r => r.section === 'rev').reduce((s, r) => s + (r.amount || 0), 0);
+    const totalPonct = D.rows.filter(r => r.section === 'ponct').reduce((s, r) => s + (r.amount || 0), 0);
+    
+    // Total récurrent = CM + Revolut
+    const totalRec = totalCM + totalRev;
+    
+    // Reste SANS ponctuelles
+    const reste = salaire - totalCM - totalRev;
+    const resteAnnuel = (reste * 12) - totalPonct;
+
+    // Badges en haut
+    document.getElementById('sumSal').textContent = fmt(salaire);
+    document.getElementById('sumCM').textContent = fmt(totalCM);
+    document.getElementById('sumRev').textContent = fmt(totalRev);
+    document.getElementById('sumPonct').textContent = fmt(totalPonct);
+    document.getElementById('sumTotalRec').textContent = fmt(totalRec);
+    document.getElementById('sumRest').textContent = fmt(reste);
+    document.getElementById('sumRestYear').textContent = fmt(resteAnnuel);
+
+    document.getElementById('sumRestBox').classList.toggle('neg', reste < 0);
+    document.getElementById('sumRestYearBox').classList.toggle('neg', resteAnnuel < 0);
+    
+    // Totaux dans les section-headers
+    const secSal = document.getElementById('sec-total-salaire');
+    const secCM = document.getElementById('sec-total-cm');
+    const secRev = document.getElementById('sec-total-rev');
+    const secPonct = document.getElementById('sec-total-ponct');
+    if (secSal) secSal.textContent = fmt(salaire);
+    if (secCM) secCM.textContent = fmt(totalCM);
+    if (secRev) secRev.textContent = fmt(totalRev);
+    if (secPonct) secPonct.textContent = fmt(totalPonct);
+}
+
+// Suivi Revolut
+function renderSuivi() {
+    document.getElementById('revSolde').value = D.suivi.rev.solde || '';
+    document.getElementById('revLast').value = '';
+    document.getElementById('revDesc').value = D.suivi.rev.desc || '';
+    document.getElementById('cmSolde').value = D.suivi.cm.soldeAffiche || '';
+    document.getElementById('cmLast').value = '';
+    renderAtt();
+    calcSuiviDisplay();
+    renderLastOps();
+}
+
+function updSuiviRev() {
+    const solde = parseFloat(document.getElementById('revSolde').value) || 0;
+    D.suivi.rev.solde = solde;
+    D.suivi.rev.desc = document.getElementById('revDesc').value;
+    save();
+    calcSuiviDisplay();
+}
+
+function applyRevOp() {
+    const op = parseFloat(document.getElementById('revLast').value) || 0;
+    if (op === 0) return;
+    // Dépense positive = on soustrait, transfert entrant négatif = on ajoute
+    D.suivi.rev.solde = (D.suivi.rev.solde || 0) - op;
+    D.suivi.rev.lastOp = op; // Sauvegarder la dernière op
+    document.getElementById('revSolde').value = D.suivi.rev.solde;
+    document.getElementById('revLast').value = '';
+    save();
+    calcSuiviDisplay();
+    renderLastOps();
+}
+
+function updSuiviCM() {
+    const soldeAffiche = parseFloat(document.getElementById('cmSolde').value) || 0;
+    D.suivi.cm.soldeAffiche = soldeAffiche;
+    save();
+    calcSuiviDisplay();
+}
+
+function applyCMOp() {
+    const op = parseFloat(document.getElementById('cmLast').value) || 0;
+    if (op === 0) return;
+    // Dépense positive = on soustrait, transfert entrant négatif = on ajoute
+    D.suivi.cm.soldeAffiche = (D.suivi.cm.soldeAffiche || 0) - op;
+    D.suivi.cm.lastOp = op; // Sauvegarder la dernière op
+    document.getElementById('cmSolde').value = D.suivi.cm.soldeAffiche;
+    document.getElementById('cmLast').value = '';
+    save();
+    calcSuiviDisplay();
+    renderLastOps();
+}
+
+function renderLastOps() {
+    const revLastOp = D.suivi.rev.lastOp;
+    const cmLastOp = D.suivi.cm.lastOp;
+    
+    if (revLastOp) {
+        const sign = revLastOp > 0 ? '-' : '+';
+        document.getElementById('revLastOp').innerHTML = `Dernière : <strong>${sign}${Math.abs(revLastOp).toFixed(2)} €</strong>`;
+    } else {
+        document.getElementById('revLastOp').innerHTML = '';
+    }
+    
+    if (cmLastOp) {
+        const sign = cmLastOp > 0 ? '-' : '+';
+        document.getElementById('cmLastOp').innerHTML = `Dernière : <strong>${sign}${Math.abs(cmLastOp).toFixed(2)} €</strong>`;
+    } else {
+        document.getElementById('cmLastOp').innerHTML = '';
+    }
+}
+
+function calcSuiviDisplay() {
+    // Revolut : solde actuel
+    document.getElementById('dispRev').textContent = fmt(D.suivi.rev.solde);
+    
+    // CM : solde réel = solde affiché - dépenses en attente
+    const att = D.suivi.cm.att.reduce((s, x) => s + (x.val || 0), 0);
+    const soldeReel = D.suivi.cm.soldeAffiche - att;
+    document.getElementById('dispCM').textContent = fmt(soldeReel);
+}
+
+function addAtt() { D.suivi.cm.att.push({ val: 0, desc: '' }); save(); renderAtt(); calcSuiviDisplay(); }
+
+function delAtt(i) {
+    // Quand on supprime une attente, le solde affiché doit diminuer du montant supprimé
+    // Car l'opération a été encaissée
+    const montant = D.suivi.cm.att[i].val || 0;
+    D.suivi.cm.soldeAffiche -= montant;
+    D.suivi.cm.att.splice(i, 1);
+    save();
+    document.getElementById('cmSolde').value = D.suivi.cm.soldeAffiche;
+    renderAtt();
+    calcSuiviDisplay();
+}
+
+function updAtt(i, f, v) {
+    const oldVal = D.suivi.cm.att[i].val || 0;
+    if (f === 'val') {
+        D.suivi.cm.att[i].val = parseFloat(v) || 0;
+    } else {
+        D.suivi.cm.att[i].desc = v;
+    }
+    save();
+    calcSuiviDisplay();
+}
+
+function renderAtt() {
+    const list = document.getElementById('attList');
+    if (!D.suivi.cm.att.length) { list.innerHTML = '<div class="att-empty">Aucune</div>'; return; }
+    list.innerHTML = D.suivi.cm.att.map((a, i) => `
+        <div class="att-row">
+            <input type="number" class="num" value="${a.val || ''}" oninput="updAtt(${i},'val',this.value)">
+            <input type="text" value="${a.desc || ''}" placeholder="Description" oninput="updAtt(${i},'desc',this.value)">
+            <button class="att-del" onclick="delAtt(${i})">×</button>
+        </div>
+    `).join('');
+}
+
+// IR
+function renderIR() {
+    if (!D.ir) D.ir = [];
+    const tbody = document.getElementById('irBody');
+    if (!D.ir.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:12px;">Aucun</td></tr>'; return; }
+    tbody.innerHTML = D.ir.map((ir, i) => {
+        const cls = ir.remboursement >= 0 ? 'pos' : 'neg';
+        const txt = ir.remboursement >= 0 ? `+${ir.remboursement}` : ir.remboursement;
+        return `<tr>
+            <td><strong>${ir.annee}</strong></td>
+            <td>${ir.revenus}</td>
+            <td>${ir.montant.toLocaleString('fr-FR')} €</td>
+            <td class="ir-rbt ${cls}">${txt} €</td>
+            <td>${ir.note || ''}</td>
+            <td><button class="btn-del" onclick="delIR(${i})">×</button></td>
+        </tr>`;
+    }).join('');
+}
+
+function addIR() {
+    const annee = parseInt(document.getElementById('irAddAnnee').value);
+    const revenus = parseInt(document.getElementById('irAddRevenus').value);
+    const montant = parseInt(document.getElementById('irAddMontant').value);
+    const rbt = parseInt(document.getElementById('irAddRbt').value) || 0;
+    const note = document.getElementById('irAddNote').value;
+    if (!annee || !montant) { alert('Année et montant requis'); return; }
+    if (!D.ir) D.ir = [];
+    D.ir.push({ annee, revenus: revenus || annee - 1, montant, remboursement: rbt, note });
+    D.ir.sort((a, b) => a.annee - b.annee);
+    ['irAddAnnee','irAddRevenus','irAddMontant','irAddRbt','irAddNote'].forEach(id => document.getElementById(id).value = '');
+    save(); renderIR();
+}
+
+function delIR(i) { if (confirm('Supprimer ?')) { D.ir.splice(i, 1); save(); renderIR(); } }
+
+// Files
+function save() { localStorage.setItem('budget-v4', JSON.stringify(D)); }
+
+async function openFile() {
+    if ('showOpenFilePicker' in window) {
+        try {
+            const [h] = await window.showOpenFilePicker({ types: [{ accept: { 'application/json': ['.json'] } }] });
+            fileHandle = h;
+            D = JSON.parse(await (await h.getFile()).text());
+            if (!D.ir) D.ir = [];
+            if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
+            if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
+            document.getElementById('welcome').style.display = 'none';
+            document.getElementById('app').style.display = 'block';
+            render(); return;
+        } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    document.getElementById('fileIn').click();
+}
+
+function loadFile(e) {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
+        D = JSON.parse(ev.target.result);
+        if (!D.ir) D.ir = [];
+        if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
+        if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
+        document.getElementById('welcome').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        render();
+    };
+    r.readAsText(f);
+}
+
+async function saveFile() {
+    const json = JSON.stringify(D, null, 2);
+    localStorage.setItem('budget-v4', json);
+    if (fileHandle) {
+        const w = await fileHandle.createWritable();
+        await w.write(json); await w.close();
+        alert('✓ Sauvegardé !'); return;
+    }
+    if ('showSaveFilePicker' in window) {
+        try {
+            fileHandle = await window.showSaveFilePicker({ suggestedName: 'budget.json' });
+            const w = await fileHandle.createWritable();
+            await w.write(json); await w.close();
+            alert('✓ Sauvegardé !'); return;
+        } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([json]));
+    a.download = 'budget.json'; a.click();
+}
+
+function fmt(n) { return n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
+
+const saved = localStorage.getItem('budget-v4');
+if (saved) {
+    try {
+        D = JSON.parse(saved);
+        if (!D.ir) D.ir = [];
+        if (!D.info) D.info = {};
+        document.getElementById('welcome').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        render();
+    } catch (e) {}
+}
+</script>
+</body>
+</html>
