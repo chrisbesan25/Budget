@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Budget Perso</title>
+    <script src="https://accounts.google.com/gsi/client"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -75,6 +76,65 @@
         }
         .btn:hover { background: rgba(255,255,255,0.25); }
         .btn.primary { background: white; color: var(--blue); border-color: white; }
+        .btn.google { background: #4285f4; border-color: #4285f4; }
+        .btn.google:hover { background: #3367d6; }
+        .btn.danger { background: var(--red); border-color: var(--red); }
+        
+        /* Barre de connexion Google */
+        .gdrive-bar {
+            background: #e8f5e9;
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #c8e6c9;
+        }
+        .gdrive-bar.disconnected {
+            background: #fff3e0;
+            border-bottom-color: #ffe0b2;
+        }
+        .gdrive-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .gdrive-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+        .gdrive-bar.disconnected .gdrive-dot {
+            background: var(--orange);
+        }
+        .gdrive-user {
+            font-weight: 600;
+            color: var(--text);
+        }
+        .gdrive-file {
+            color: var(--text2);
+            font-size: 0.75rem;
+        }
+        .gdrive-actions {
+            display: flex;
+            gap: 6px;
+        }
+        .btn-sm {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Sora', sans-serif;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-sm.green { background: var(--green); color: white; }
+        .btn-sm.green:hover { background: var(--green-dark); }
+        .btn-sm.blue { background: var(--blue); color: white; }
+        .btn-sm.blue:hover { background: var(--blue-dark); }
+        .btn-sm.gray { background: #e2e8f0; color: var(--text2); }
+        .btn-sm.gray:hover { background: #cbd5e1; }
 
         /* Tous les rectangles - grille 2 colonnes */
         .all-boxes {
@@ -543,8 +603,9 @@
     <h1>💰 Budget Perso</h1>
     <p>Ton suivi budgétaire mensuel</p>
     <div class="welcome-btns">
-        <button class="welcome-btn main" onclick="start()">Commencer</button>
-        <button class="welcome-btn" onclick="openFile()">Ouvrir un fichier</button>
+        <button class="welcome-btn main" onclick="googleSignIn()">📁 Ouvrir depuis Google Drive</button>
+        <button class="welcome-btn" onclick="start()">Nouveau budget</button>
+        <button class="welcome-btn" onclick="openFile()">Ouvrir fichier local</button>
     </div>
     <input type="file" id="fileIn" accept=".json" style="display:none" onchange="loadFile(event)">
 </div>
@@ -553,8 +614,21 @@
     <div class="header">
         <h1>💰 Budget Perso</h1>
         <div class="btns">
-            <button class="btn" onclick="openFile()">Ouvrir</button>
-            <button class="btn primary" onclick="saveFile()">Sauvegarder</button>
+            <button class="btn" onclick="openFile()">Local</button>
+            <button class="btn primary" onclick="saveToGDrive()">💾 Sauvegarder</button>
+        </div>
+    </div>
+    
+    <!-- Barre Google Drive -->
+    <div id="gdriveBar" class="gdrive-bar disconnected">
+        <div class="gdrive-status">
+            <span class="gdrive-dot"></span>
+            <span class="gdrive-user" id="gdriveUser">Non connecté</span>
+            <span class="gdrive-file" id="gdriveFile"></span>
+        </div>
+        <div class="gdrive-actions">
+            <button class="btn-sm blue" id="btnGoogleConnect" onclick="googleSignIn()">Connexion Google</button>
+            <button class="btn-sm gray" id="btnGoogleDisconnect" onclick="googleSignOut()" style="display:none;">Déconnexion</button>
         </div>
     </div>
 
@@ -702,17 +776,24 @@
         </div>
     </div>
 
-    <!-- Sync info -->
+    <!-- Info Google Drive -->
     <div class="sync-info">
-        <div class="sync-info-title">📱 Synchronisation PC ↔ Mobile</div>
-        <p><strong>1.</strong> Sauvegarde dans ton dossier Google Drive (ou Dropbox)</p>
-        <p><strong>2.</strong> Sur l'autre appareil, ouvre le même fichier JSON</p>
-        <p><strong>3.</strong> Sauvegarde après chaque modif pour garder la synchro</p>
-        <p>⚠️ Ne pas modifier sur 2 appareils en même temps sans sauvegarder entre</p>
+        <div class="sync-info-title">☁️ Synchronisation Google Drive</div>
+        <p>✅ Connecte-toi à Google Drive pour sauvegarder automatiquement</p>
+        <p>✅ Ton fichier budget.json est synchronisé entre tous tes appareils</p>
+        <p>✅ Un seul clic pour sauvegarder, sur PC comme sur mobile !</p>
     </div>
 </div>
 
 <script>
+// ========== CONFIG GOOGLE ==========
+const CLIENT_ID = '149294516979-rt7n1pabe5i1e6e9nqj7niurjnahqn1r.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const FILE_NAME = 'budget.json';
+
+let tokenClient;
+let accessToken = null;
+let gdriveFileId = null;
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 const DEFAULT_DATA = {
@@ -1125,8 +1206,193 @@ function addIR() {
 
 function delIR(i) { if (confirm('Supprimer ?')) { D.ir.splice(i, 1); save(); renderIR(); } }
 
-// Files
-function save() { localStorage.setItem('budget-v4', JSON.stringify(D)); }
+// ========== GOOGLE DRIVE ==========
+
+// Initialiser Google Identity Services
+function initGoogle() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: handleAuthResponse,
+    });
+}
+
+// Connexion Google
+function googleSignIn() {
+    if (!tokenClient) initGoogle();
+    tokenClient.requestAccessToken();
+}
+
+// Callback après authentification
+async function handleAuthResponse(response) {
+    if (response.error) {
+        console.error('Auth error:', response.error);
+        alert('Erreur de connexion Google');
+        return;
+    }
+    accessToken = response.access_token;
+    updateGDriveUI(true);
+    
+    // Chercher le fichier budget.json existant
+    await findOrCreateFile();
+    
+    // Charger les données depuis Drive
+    if (gdriveFileId) {
+        await loadFromGDrive();
+    }
+    
+    document.getElementById('welcome').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    render();
+}
+
+// Déconnexion
+function googleSignOut() {
+    if (accessToken) {
+        google.accounts.oauth2.revoke(accessToken);
+        accessToken = null;
+        gdriveFileId = null;
+    }
+    updateGDriveUI(false);
+}
+
+// Mettre à jour l'interface Google Drive
+function updateGDriveUI(connected) {
+    const bar = document.getElementById('gdriveBar');
+    const user = document.getElementById('gdriveUser');
+    const file = document.getElementById('gdriveFile');
+    const btnConnect = document.getElementById('btnGoogleConnect');
+    const btnDisconnect = document.getElementById('btnGoogleDisconnect');
+    
+    if (connected) {
+        bar.classList.remove('disconnected');
+        user.textContent = '✅ Connecté';
+        file.textContent = gdriveFileId ? `— ${FILE_NAME}` : '';
+        btnConnect.style.display = 'none';
+        btnDisconnect.style.display = 'inline-block';
+    } else {
+        bar.classList.add('disconnected');
+        user.textContent = 'Non connecté';
+        file.textContent = '';
+        btnConnect.style.display = 'inline-block';
+        btnDisconnect.style.display = 'none';
+    }
+}
+
+// Chercher ou créer le fichier sur Drive
+async function findOrCreateFile() {
+    try {
+        // Chercher le fichier
+        const searchRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}' and trashed=false&spaces=drive`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        const searchData = await searchRes.json();
+        
+        if (searchData.files && searchData.files.length > 0) {
+            gdriveFileId = searchData.files[0].id;
+            console.log('Fichier trouvé:', gdriveFileId);
+        } else {
+            // Créer le fichier
+            await createFileOnDrive();
+        }
+        
+        document.getElementById('gdriveFile').textContent = `— ${FILE_NAME}`;
+    } catch (e) {
+        console.error('Erreur Drive:', e);
+    }
+}
+
+// Créer un nouveau fichier sur Drive
+async function createFileOnDrive() {
+    const metadata = {
+        name: FILE_NAME,
+        mimeType: 'application/json'
+    };
+    
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', new Blob([JSON.stringify(D, null, 2)], { type: 'application/json' }));
+    
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+        body: form
+    });
+    
+    const data = await res.json();
+    gdriveFileId = data.id;
+    console.log('Fichier créé:', gdriveFileId);
+}
+
+// Charger depuis Google Drive
+async function loadFromGDrive() {
+    if (!gdriveFileId || !accessToken) return;
+    
+    try {
+        const res = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${gdriveFileId}?alt=media`,
+            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+        );
+        
+        if (res.ok) {
+            const data = await res.json();
+            D = data;
+            if (!D.ir) D.ir = [];
+            if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
+            if (!D.suivi) D.suivi = { rev: { solde: 0 }, cm: { soldeAffiche: 0, att: [] } };
+            if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
+            localStorage.setItem('budget-gdrive', JSON.stringify(D));
+            console.log('Données chargées depuis Drive');
+        }
+    } catch (e) {
+        console.error('Erreur chargement:', e);
+    }
+}
+
+// Sauvegarder sur Google Drive
+async function saveToGDrive() {
+    // Toujours sauvegarder en local
+    localStorage.setItem('budget-gdrive', JSON.stringify(D));
+    
+    if (!accessToken || !gdriveFileId) {
+        // Si pas connecté, proposer connexion
+        if (confirm('Tu n\'es pas connecté à Google Drive. Veux-tu te connecter pour sauvegarder ?')) {
+            googleSignIn();
+        } else {
+            // Sauvegarder en local
+            saveFileLocal();
+        }
+        return;
+    }
+    
+    try {
+        const res = await fetch(
+            `https://www.googleapis.com/upload/drive/v3/files/${gdriveFileId}?uploadType=media`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(D, null, 2)
+            }
+        );
+        
+        if (res.ok) {
+            alert('✅ Sauvegardé sur Google Drive !');
+        } else {
+            throw new Error('Erreur sauvegarde');
+        }
+    } catch (e) {
+        console.error('Erreur sauvegarde:', e);
+        alert('Erreur de sauvegarde. Réessaie.');
+    }
+}
+
+// ========== FICHIERS LOCAUX ==========
+
+function save() { localStorage.setItem('budget-gdrive', JSON.stringify(D)); }
 
 async function openFile() {
     if ('showOpenFilePicker' in window) {
@@ -1136,6 +1402,7 @@ async function openFile() {
             D = JSON.parse(await (await h.getFile()).text());
             if (!D.ir) D.ir = [];
             if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
+            if (!D.suivi) D.suivi = { rev: { solde: 0 }, cm: { soldeAffiche: 0, att: [] } };
             if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
             document.getElementById('welcome').style.display = 'none';
             document.getElementById('app').style.display = 'block';
@@ -1152,6 +1419,7 @@ function loadFile(e) {
         D = JSON.parse(ev.target.result);
         if (!D.ir) D.ir = [];
         if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
+        if (!D.suivi) D.suivi = { rev: { solde: 0 }, cm: { soldeAffiche: 0, att: [] } };
         if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
         document.getElementById('welcome').style.display = 'none';
         document.getElementById('app').style.display = 'block';
@@ -1160,30 +1428,24 @@ function loadFile(e) {
     r.readAsText(f);
 }
 
-async function saveFile() {
+function saveFileLocal() {
     const json = JSON.stringify(D, null, 2);
-    localStorage.setItem('budget-v4', json);
-    if (fileHandle) {
-        const w = await fileHandle.createWritable();
-        await w.write(json); await w.close();
-        alert('✓ Sauvegardé !'); return;
-    }
-    if ('showSaveFilePicker' in window) {
-        try {
-            fileHandle = await window.showSaveFilePicker({ suggestedName: 'budget.json' });
-            const w = await fileHandle.createWritable();
-            await w.write(json); await w.close();
-            alert('✓ Sauvegardé !'); return;
-        } catch (e) { if (e.name === 'AbortError') return; }
-    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([json]));
-    a.download = 'budget.json'; a.click();
+    a.download = 'budget.json';
+    a.click();
 }
 
 function fmt(n) { return n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 2 }); }
 
-const saved = localStorage.getItem('budget-v4');
+// ========== INIT ==========
+
+// Initialiser Google au chargement
+window.onload = function() {
+    initGoogle();
+};
+
+const saved = localStorage.getItem('budget-gdrive');
 if (saved) {
     try {
         D = JSON.parse(saved);
