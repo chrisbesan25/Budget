@@ -235,6 +235,10 @@
         .field input:focus { outline: none; border-color: var(--blue); }
         .field-full { margin-top: 8px; }
         .field-full input { font-family: 'Sora', sans-serif; }
+        /* Champ Description (Revolut) : même présentation que les autres champs du suivi (ajout du 22/09/2026) */
+        .field-full label { display: block; font-size: 0.6rem; color: var(--text2); text-transform: uppercase; margin-bottom: 3px; font-weight: 600; }
+        .field-full input { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+        .field-full input:focus { outline: none; border-color: var(--blue); }
         .last-op {
             font-size: 0.7rem;
             color: var(--text2);
@@ -594,6 +598,35 @@
             .row-check input[type="checkbox"] { width: 24px; height: 24px; }
             .btn-move, .btn-del { width: 20px; height: 20px; font-size: 10px; }
         }
+
+        /* ===== Écrans larges (ajout du 22/09/2026) : le mobile (moins de 700 px) est inchangé ===== */
+        .bank-name { cursor: pointer; }
+        @media (min-width: 700px) {
+            .all-boxes { grid-template-columns: repeat(5, 1fr); }          /* 10 rectangles sur 2 lignes */
+        }
+        @media (min-width: 1200px) {
+            .all-boxes { grid-template-columns: repeat(10, 1fr); }         /* 10 rectangles sur 1 ligne */
+            .all-boxes .sum-label { min-height: 2.4em; }                   /* libellés sur 2 lignes alignés */
+            .all-boxes .sum-input { padding: 6px; font-size: 1rem; }
+            .all-boxes .ir-inputs .sum-input.small { font-size: 0.85rem; }
+        }
+        @media (min-width: 1000px) {
+            /* Ventilation : Salaire + Ponctuelles | Crédit Mutuel | Revolut, côte à côte */
+            .budget-section {
+                max-width: 1280px;
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                grid-template-rows: auto 1fr;
+                grid-template-areas: "sal cm rev" "ponct cm rev";
+                column-gap: 14px;
+                align-items: start;
+            }
+            .blk-salaire { grid-area: sal; }
+            .blk-cm { grid-area: cm; }
+            .blk-rev { grid-area: rev; }
+            .blk-ponct { grid-area: ponct; }
+            .suivi-section { max-width: 1280px; margin: 0 auto; }
+        }
     </style>
 </head>
 <body>
@@ -658,11 +691,11 @@
         
         <!-- Ligne 3 : Charges CM / Charges Revolut -->
         <div class="sum-box cm">
-            <div class="sum-label">Charges CM</div>
+            <div class="sum-label" id="lblChargesCM">Charges CM</div>
             <div class="sum-val" id="sumCM">0 €</div>
         </div>
         <div class="sum-box rev">
-            <div class="sum-label">Charges Revolut</div>
+            <div class="sum-label" id="lblChargesRev">Charges Revolut</div>
             <div class="sum-val" id="sumRev">0 €</div>
         </div>
         
@@ -693,7 +726,7 @@
         <div class="suivi-cards">
             <div class="suivi-card rev">
                 <div class="suivi-head">
-                    <span class="suivi-card-title">Revolut</span>
+                    <span class="suivi-card-title bank-name" id="bankTitleRev" onclick="renameBank('rev')" title="Cliquer pour renommer la banque">Revolut</span>
                     <span class="solde-val" id="dispRev">0 €</span>
                 </div>
                 <div class="suivi-body">
@@ -717,7 +750,7 @@
 
             <div class="suivi-card cm">
                 <div class="suivi-head">
-                    <span class="suivi-card-title">Crédit Mutuel</span>
+                    <span class="suivi-card-title bank-name" id="bankTitleCM" onclick="renameBank('cm')" title="Cliquer pour renommer la banque">Crédit Mutuel</span>
                     <span class="solde-val" id="dispCM">0 €</span>
                 </div>
                 <div class="suivi-body">
@@ -808,7 +841,8 @@ const DEFAULT_DATA = {
         rev: { solde: 0, last: 0, desc: '' },
         cm: { soldeAffiche: 0, last: 0, att: [] }
     },
-    ir: []
+    ir: [],
+    banks: { cm: { nom: 'Crédit Mutuel', court: 'CM' }, rev: { nom: 'Revolut', court: 'Revolut' } }
 };
 
 let D = JSON.parse(JSON.stringify(DEFAULT_DATA));
@@ -816,12 +850,14 @@ let curMonth = new Date().getMonth();
 let fileHandle = null;
 
 function start() {
+    normalizeD();
     document.getElementById('welcome').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     render();
 }
 
 function render() {
+    renderBanks();
     renderInfo();
     renderSuivi();
     renderBudget();
@@ -847,19 +883,19 @@ function updInfo() {
 
 function changeMonth(dir) {
     curMonth = (curMonth + dir + 12) % 12;
-    document.getElementById('monthName').textContent = MONTHS[curMonth];
+    document.getElementById('monthName').textContent = monthLabel(curMonth);
     renderBudget();
 }
 
 function renderBudget() {
-    document.getElementById('monthName').textContent = MONTHS[curMonth];
+    document.getElementById('monthName').textContent = monthLabel(curMonth);
     const container = document.getElementById('budgetSection');
     let html = '';
 
     const sections = [
         { key: 'salaire', label: '💵 SALAIRE', class: 'salaire' },
-        { key: 'cm', label: '🔵 CRÉDIT MUTUEL', class: 'cm' },
-        { key: 'rev', label: '🟠 REVOLUT', class: 'rev' },
+        { key: 'cm', label: '🔵 ' + esc(bankName('cm')).toUpperCase(), class: 'cm' },
+        { key: 'rev', label: '🟠 ' + esc(bankName('rev')).toUpperCase(), class: 'rev' },
         { key: 'ponct', label: '🟣 PONCTUELLES (annuelles)', class: 'ponct' }
     ];
 
@@ -867,11 +903,12 @@ function renderBudget() {
         const rows = D.rows.filter(r => r.section === sec.key);
         const total = rows.reduce((s, r) => s + (r.amount || 0), 0);
 
+        html += `<div class="budget-block blk-${sec.key}">`;
         html += `<div class="section-header ${sec.class}">${sec.label}<span id="sec-total-${sec.key}">${fmt(total)}</span></div>`;
         html += `<div class="section-content">`;
 
         rows.forEach(row => {
-            const chk = row.checked[curMonth];
+            const chk = pointageActif(curMonth) && row.checked[curMonth];
             html += `
                 <div class="budget-row ${sec.key}" data-id="${row.id}">
                     <div class="row-label">
@@ -907,6 +944,7 @@ function renderBudget() {
         }
 
         html += `</div>`;
+        html += `</div>`; // fin du bloc de section
     });
 
     container.innerHTML = html;
@@ -947,7 +985,11 @@ function updAmount(id, value) {
 
 function updCheck(id, checked) {
     const row = D.rows.find(r => r.id === id);
-    if (row) { row.checked[curMonth] = checked; save(); }
+    if (!row) return;
+    // Premier pointage d'un mois qui revient : on repart de cases vides pour ce mois
+    if (!pointageActif(curMonth)) { resetPointage(D, curMonth); renderBudget(); }
+    row.checked[curMonth] = checked;
+    save();
 }
 
 function addRow(section) {
@@ -1177,6 +1219,60 @@ function addIR() {
 
 function delIR(i) { if (confirm('Supprimer ?')) { D.ir.splice(i, 1); save(); renderIR(); } }
 
+
+// ========== MOIS, POINTAGES ET BANQUES (ajout du 22/09/2026) ==========
+// Un mois affiché correspond à son occurrence la plus proche d'aujourd'hui :
+// jusqu'à 6 mois en arrière, jusqu'à 5 mois en avant (en janvier, décembre = celui qui vient de finir).
+function occurrenceYear(m, now) {
+    now = now || new Date();
+    const d = m - now.getMonth();
+    let y = now.getFullYear();
+    if (d > 5) y -= 1;
+    else if (d < -6) y += 1;
+    return y;
+}
+function monthLabel(m) { return MONTHS[m] + ' ' + occurrenceYear(m); }
+// Les cases d'un mois ne valent que pour l'année à laquelle elles ont été cochées
+function pointageActif(m) { return D.pointYear && D.pointYear[m] === occurrenceYear(m); }
+function resetPointage(d, m) {
+    d.rows.forEach(r => { if (r.checked) r.checked[m] = false; });
+    d.pointYear[m] = occurrenceYear(m);
+}
+// Nettoyage automatique : les pointages d'une occurrence passée (un an plus tôt) sont effacés.
+function normalizePointage(d) {
+    d.rows.forEach(r => { if (!Array.isArray(r.checked) || r.checked.length !== 12) r.checked = Array(12).fill(false); });
+    if (!Array.isArray(d.pointYear) || d.pointYear.length !== 12) {
+        // Données antérieures : une case cochée appartient à la dernière occurrence ÉCOULÉE ou en cours du mois
+        // (ex. en septembre 2026, les cases de janvier sont celles de janvier 2026, pas de janvier 2027).
+        const now = new Date();
+        d.pointYear = [];
+        for (let m = 0; m < 12; m++) d.pointYear.push(m <= now.getMonth() ? now.getFullYear() : now.getFullYear() - 1);
+    }
+    for (let m = 0; m < 12; m++) if (d.pointYear[m] !== occurrenceYear(m)) resetPointage(d, m);
+}
+
+function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function bankName(k) { return (D.banks && D.banks[k] && D.banks[k].nom) || (k === 'cm' ? 'Crédit Mutuel' : 'Revolut'); }
+function bankShort(k) { return (D.banks && D.banks[k] && D.banks[k].court) || (k === 'cm' ? 'CM' : 'Revolut'); }
+function renderBanks() {
+    document.getElementById('bankTitleCM').textContent = bankName('cm');
+    document.getElementById('bankTitleRev').textContent = bankName('rev');
+    document.getElementById('lblChargesCM').textContent = 'Charges ' + bankShort('cm');
+    document.getElementById('lblChargesRev').textContent = 'Charges ' + bankShort('rev');
+}
+// Renommer une banque : nom complet (cartes et sections) puis nom court (rectangle « Charges ... »)
+function renameBank(k) {
+    const nom = prompt('Nom de la banque :', bankName(k));
+    if (nom === null || !nom.trim()) return;
+    const proposeCourt = nom.trim().length <= 10 ? nom.trim() : bankShort(k);
+    const court = prompt('Nom court (rectangle « Charges ... ») :', proposeCourt);
+    if (court === null || !court.trim()) return;
+    if (!D.banks) D.banks = {};
+    D.banks[k] = { nom: nom.trim(), court: court.trim() };
+    save();
+    render();
+}
+
 // ========== GITHUB (stockage privé) ==========
 // Règles de synchronisation (version du 22 septembre 2026) :
 // 1. chaque modification est gardée sur l'appareil puis envoyée automatiquement
@@ -1233,6 +1329,9 @@ function normalizeData(d) {
     if (!d.suivi.cm.soldeAffiche && d.suivi.cm.solde) d.suivi.cm.soldeAffiche = d.suivi.cm.solde;
     if (typeof d.suivi.rev.solde === 'number') d.suivi.rev.solde = round2(d.suivi.rev.solde);
     if (typeof d.suivi.cm.soldeAffiche === 'number') d.suivi.cm.soldeAffiche = round2(d.suivi.cm.soldeAffiche);
+    if (!d.rows) d.rows = [];
+    if (!d.banks) d.banks = { cm: { nom: 'Crédit Mutuel', court: 'CM' }, rev: { nom: 'Revolut', court: 'Revolut' } };
+    normalizePointage(d);
     return d;
 }
 function normalizeD() { normalizeData(D); }
