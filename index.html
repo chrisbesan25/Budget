@@ -780,6 +780,7 @@
         <div class="sync-info-title">☁️ Synchronisation GitHub (privé)</div>
         <p>✅ Tes données sont dans ton espace GitHub privé, visibles par toi seul</p>
         <p>✅ Ton fichier budget.json est synchronisé entre tous tes appareils</p>
+        <p>✅ Envoi automatique quelques secondes après chaque modification ; le bouton 💾 envoie tout de suite</p>
         <p>✅ Chaque sauvegarde est historisée : retour en arrière possible</p>
     </div>
 </div>
@@ -792,8 +793,6 @@ const GH_FILE  = 'budget.json';
 const GH_TOKEN_KEY = 'budget-gh-token';
 const GH_API = 'https://api.github.com/repos/' + GH_OWNER + '/' + GH_REPO + '/contents/' + GH_FILE;
 
-let ghSha = null;        // référence de la dernière version connue du fichier
-let pendingSave = false; // sauvegarde à relancer juste après la 1re connexion
 
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
@@ -1074,20 +1073,23 @@ function applyCMOp() {
     renderLastOps();
 }
 
+// Montant au format français, toujours deux décimales (50,00)
+function eur2(n) { return Math.abs(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
 function renderLastOps() {
     const revLastOp = D.suivi.rev.lastOp;
     const cmLastOp = D.suivi.cm.lastOp;
     
     if (revLastOp) {
         const sign = revLastOp > 0 ? '-' : '+';
-        document.getElementById('revLastOp').innerHTML = `Dernière : <strong>${sign}${Math.abs(revLastOp).toFixed(2)} €</strong>`;
+        document.getElementById('revLastOp').innerHTML = `Dernière : <strong>${sign}${eur2(revLastOp)} €</strong>`;
     } else {
         document.getElementById('revLastOp').innerHTML = '';
     }
     
     if (cmLastOp) {
         const sign = cmLastOp > 0 ? '-' : '+';
-        document.getElementById('cmLastOp').innerHTML = `Dernière : <strong>${sign}${Math.abs(cmLastOp).toFixed(2)} €</strong>`;
+        document.getElementById('cmLastOp').innerHTML = `Dernière : <strong>${sign}${eur2(cmLastOp)} €</strong>`;
     } else {
         document.getElementById('cmLastOp').innerHTML = '';
     }
@@ -1176,6 +1178,26 @@ function addIR() {
 function delIR(i) { if (confirm('Supprimer ?')) { D.ir.splice(i, 1); save(); renderIR(); } }
 
 // ========== GITHUB (stockage privé) ==========
+// Règles de synchronisation (version du 22 septembre 2026) :
+// 1. chaque modification est gardée sur l'appareil puis envoyée automatiquement
+//    environ 3 secondes après la dernière saisie (le bouton Sauvegarder envoie tout de suite) ;
+// 2. l'appareil mémorise la version en ligne de sa dernière synchro réussie (sa « base ») :
+//    il ne remplace JAMAIS en silence une version en ligne plus récente que sa base ;
+// 3. la synchro se relance à l'ouverture, au retour au premier plan et au retour du réseau ;
+// 4. si les données ont changé des deux côtés, l'utilisateur choisit la version à garder.
+
+const K_LOCAL     = 'budget-gdrive';        // copie locale des données (nom historique conservé)
+const K_BASE_SHA  = 'budget-gh-base-sha';   // version en ligne de la dernière synchro réussie
+const K_BASE_JSON = 'budget-gh-base-json';  // contenu de cette version, pour repérer les modifs locales
+const K_INFLIGHT  = 'budget-gh-inflight';   // contenu en cours d'envoi (réponse perdue si mise en veille)
+const K_LASTSYNC  = 'budget-gh-lastsync';   // date de la dernière synchro réussie
+const AUTOSEND_DELAY = 3000;                // délai d'envoi automatique après la dernière saisie
+const RETRY_DELAY    = 30000;               // nouvel essai tant que des modifs restent en attente
+
+let autoTimer = null;
+let retryTimer = null;
+let syncChain = Promise.resolve();  // les synchros s'exécutent l'une après l'autre, jamais en parallèle
+let netState = 'ok';                // 'ok' | 'offline' | 'error'
 
 function hasToken() { return !!localStorage.getItem(GH_TOKEN_KEY); }
 
@@ -1186,7 +1208,7 @@ function ghHeaders() {
     };
 }
 
-// Texte ↔ base64 compatible accents (é, €, …)
+// Texte <-> base64 compatible accents (é, €, …)
 function utf8ToB64(str) {
     const bytes = new TextEncoder().encode(str);
     let bin = '';
@@ -1200,62 +1222,220 @@ function b64ToUtf8(b64) {
     return new TextDecoder().decode(bytes);
 }
 
-// Remise en forme des données après chargement (mêmes contrôles qu'avant)
-function normalizeD() {
-    if (!D.ir) D.ir = [];
-    if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
-    if (!D.suivi) D.suivi = { rev: { solde: 0 }, cm: { soldeAffiche: 0, att: [] } };
-    if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
+// Remise en forme d'un jeu de données (sans effet sur des données déjà propres)
+function normalizeData(d) {
+    if (!d.ir) d.ir = [];
+    if (!d.info) d.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
+    if (!d.suivi) d.suivi = { rev: { solde: 0 }, cm: { soldeAffiche: 0, att: [] } };
+    if (!d.suivi.rev) d.suivi.rev = { solde: 0 };
+    if (!d.suivi.cm) d.suivi.cm = { soldeAffiche: 0, att: [] };
+    if (!d.suivi.cm.att) d.suivi.cm.att = [];
+    if (!d.suivi.cm.soldeAffiche && d.suivi.cm.solde) d.suivi.cm.soldeAffiche = d.suivi.cm.solde;
+    if (typeof d.suivi.rev.solde === 'number') d.suivi.rev.solde = round2(d.suivi.rev.solde);
+    if (typeof d.suivi.cm.soldeAffiche === 'number') d.suivi.cm.soldeAffiche = round2(d.suivi.cm.soldeAffiche);
+    return d;
+}
+function normalizeD() { normalizeData(D); }
+
+function dataJson() { return JSON.stringify(D); }
+function baseSha() { return localStorage.getItem(K_BASE_SHA); }
+function setBase(sha, json) {
+    if (sha) localStorage.setItem(K_BASE_SHA, sha); else localStorage.removeItem(K_BASE_SHA);
+    localStorage.setItem(K_BASE_JSON, json);
+    localStorage.setItem(K_LASTSYNC, new Date().toISOString());
+}
+// Modifs locales non envoyées ? (appareil jamais synchronisé : oui s'il a une copie locale)
+function isDirty() {
+    const base = localStorage.getItem(K_BASE_JSON);
+    if (base === null) return localStorage.getItem(K_LOCAL) !== null;
+    return dataJson() !== base;
 }
 
-// Lire budget.json depuis le dépôt privé
+function showApp() {
+    document.getElementById('welcome').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+}
+
+// Lire budget.json dans le dépôt privé (ne modifie aucun état)
 async function ghGet() {
     try {
         const res = await fetch(GH_API, { cache: 'no-store', headers: ghHeaders() });
         if (res.status === 200) {
-            const data = await res.json();
-            ghSha = data.sha;
-            const txt = b64ToUtf8((data.content || '').replace(/\n/g, ''));
-            return { ok: true, exists: true, data: JSON.parse(txt) };
+            const j = await res.json();
+            const data = normalizeData(JSON.parse(b64ToUtf8((j.content || '').replace(/\n/g, ''))));
+            return { ok: true, exists: true, sha: j.sha, data: data, json: JSON.stringify(data) };
         }
-        if (res.status === 404) { ghSha = null; return { ok: true, exists: false }; }
-        if (res.status === 401 || res.status === 403) return { ok: false, auth: true };
-        return { ok: false };
+        if (res.status === 404) return { ok: true, exists: false };
+        return ghFail(res);
     } catch (e) {
         console.error('ghGet:', e);
         return { ok: false, network: true };
     }
 }
 
-// Écrire budget.json dans le dépôt privé (création ou mise à jour)
-async function ghPut() {
+// Écrire budget.json : sha = version remplacée (null pour une création)
+async function ghPut(sha, json, keepalive) {
+    const body = { message: 'Sauvegarde budget', content: utf8ToB64(JSON.stringify(JSON.parse(json), null, 2)) };
+    if (sha) body.sha = sha;
+    const opts = {
+        method: 'PUT',
+        cache: 'no-store',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders()),
+        body: JSON.stringify(body)
+    };
     try {
-        const body = {
-            message: 'Sauvegarde budget',
-            content: utf8ToB64(JSON.stringify(D, null, 2))
-        };
-        if (ghSha) body.sha = ghSha;
-        const res = await fetch(GH_API, {
-            method: 'PUT',
-            cache: 'no-store',
-            headers: Object.assign({ 'Content-Type': 'application/json' }, ghHeaders()),
-            body: JSON.stringify(body)
-        });
+        let res;
+        try { res = await fetch(GH_API, keepalive ? Object.assign({ keepalive: true }, opts) : opts); }
+        catch (e) { if (!keepalive) throw e; res = await fetch(GH_API, opts); } // trop gros pour keepalive : envoi normal
         if (res.status === 200 || res.status === 201) {
-            const data = await res.json();
-            ghSha = data.content && data.content.sha;
-            return { ok: true };
+            const d = await res.json();
+            return { ok: true, sha: d.content && d.content.sha };
         }
-        if (res.status === 409) return { ok: false, conflict: true };
-        if (res.status === 401 || res.status === 403) return { ok: false, auth: true };
-        return { ok: false };
+        // 409 : la version en ligne n'est plus celle attendue ; 422 : fichier créé entre-temps ailleurs
+        if (res.status === 409 || res.status === 422) return { ok: false, conflict: true };
+        return ghFail(res);
     } catch (e) {
         console.error('ghPut:', e);
         return { ok: false, network: true };
     }
 }
 
-// Bouton « Connecter » : demande le code d'accès puis lance la 1re connexion
+// 401 = code refusé ; 403 = code refusé, sauf limite de débit passagère (le code est alors conservé)
+function ghFail(res) {
+    if (res.status === 401) return { ok: false, auth: true };
+    if (res.status === 403) {
+        const limite = res.headers.get('x-ratelimit-remaining') === '0' || res.headers.get('retry-after');
+        return limite ? { ok: false } : { ok: false, auth: true };
+    }
+    return { ok: false };
+}
+
+// Point d'entrée unique : toutes les synchros passent par ici, l'une après l'autre
+function syncNow(opts) {
+    syncChain = syncChain
+        .then(() => doSync(opts || {}))
+        .catch(e => { console.error('sync:', e); netState = 'error'; showStatus(); });
+    return syncChain;
+}
+
+async function doSync(opts) {
+    if (!hasToken()) { showStatus(); return; }
+    clearTimeout(autoTimer); autoTimer = null;
+    showStatus('sync');
+
+    const r = await ghGet();
+    if (!r.ok) return syncFailed(r, opts);
+
+    // Envoi précédent arrivé à bon port mais réponse perdue (appareil mis en veille) : on le reconnaît
+    const inflight = localStorage.getItem(K_INFLIGHT);
+    if (r.exists && inflight !== null && r.json === inflight) setBase(r.sha, inflight);
+    localStorage.removeItem(K_INFLIGHT);
+
+    if (!r.exists) {
+        // Aucun fichier en ligne : on envoie la copie de cet appareil s'il en a une
+        if (localStorage.getItem(K_LOCAL) !== null || opts.first) return push(null, opts);
+        return markSynced();
+    }
+
+    const remoteChanged = r.sha !== baseSha();
+    const dirty = isDirty();
+
+    if (!remoteChanged && !dirty) return markSynced();       // tout est à jour
+    if (!remoteChanged && dirty) return push(r.sha, opts);   // seules mes modifs sont nouvelles : envoi
+    if (remoteChanged && !dirty) return adopt(r);            // seule la version en ligne a changé : reprise
+
+    // Modifié des deux côtés
+    if (r.json === dataJson()) { setBase(r.sha, r.json); return markSynced(); } // mêmes données : pas de vrai conflit
+    const garderEnLigne = confirm(
+        "Tes données ont été modifiées à la fois sur cet appareil et en ligne (depuis un autre appareil) depuis la dernière synchronisation.\n\n" +
+        "OK = garder la version EN LIGNE (les modifications de cet appareil sont abandonnées)\n\n" +
+        "Annuler = garder la version de CET APPAREIL (elle remplace celle en ligne)");
+    if (garderEnLigne) return adopt(r);
+    return push(r.sha, opts);
+}
+
+async function push(sha, opts) {
+    const json = dataJson();
+    localStorage.setItem(K_INFLIGHT, json);
+    const p = await ghPut(sha, json, false);
+    if (p.ok) {
+        localStorage.removeItem(K_INFLIGHT);
+        setBase(p.sha, json);
+        markSynced();
+        if (isDirty()) scheduleAutoSend(); // saisie faite pendant l'envoi
+        return;
+    }
+    if (!p.network) localStorage.removeItem(K_INFLIGHT); // échec certain : rien n'est parti
+    if (p.conflict && !opts.retried) {
+        // La version en ligne a changé entre la lecture et l'envoi : synchro complète à nouveau
+        await new Promise(res => setTimeout(res, 1500));
+        return doSync(Object.assign({}, opts, { retried: true }));
+    }
+    return syncFailed(p, opts);
+}
+
+function adopt(r) {
+    D = r.data;
+    localStorage.setItem(K_LOCAL, r.json);
+    setBase(r.sha, r.json);
+    showApp();
+    render();
+    markSynced();
+}
+
+function markSynced() {
+    netState = 'ok';
+    localStorage.setItem(K_LASTSYNC, new Date().toISOString());
+    clearTimeout(retryTimer);
+    showStatus();
+}
+
+function syncFailed(r, opts) {
+    if (r.auth) {
+        localStorage.removeItem(GH_TOKEN_KEY);
+        showStatus();
+        if (opts.first) alert("Code d'accès refusé par GitHub. Vérifie que tu as copié le code EN ENTIER, puis réessaie.");
+        else if (opts.manual || isDirty()) alert("Le code d'accès n'est plus valide. Clique sur « Entrer le code » et colle-le à nouveau. Tes modifications sont gardées sur cet appareil.");
+        return;
+    }
+    if (opts.first) {
+        localStorage.removeItem(GH_TOKEN_KEY);
+        showStatus();
+        alert("Impossible de joindre GitHub. Vérifie ta connexion internet, puis réessaie.");
+        return;
+    }
+    netState = r.network ? 'offline' : 'error';
+    showStatus();
+    if (opts.manual) alert(r.network
+        ? "Pas de connexion : tes modifications sont gardées sur cet appareil et partiront automatiquement au retour du réseau."
+        : "Envoi impossible pour le moment. Tes modifications sont gardées sur cet appareil ; nouvel essai automatique.");
+    if (isDirty()) { clearTimeout(retryTimer); retryTimer = setTimeout(() => syncNow(), RETRY_DELAY); }
+}
+
+// Envoi programmé après une modification (regroupe les saisies rapprochées en un seul envoi)
+function scheduleAutoSend() {
+    if (!hasToken() || !isDirty()) { showStatus(); return; }
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => syncNow(), AUTOSEND_DELAY);
+    showStatus();
+}
+
+// Mise en arrière-plan : envoi immédiat en une seule requête (keepalive), sans relecture préalable.
+// Si la version en ligne a changé entre-temps, GitHub refuse et le cas est traité au retour.
+function flushOnHide() {
+    if (!hasToken() || !isDirty()) return;
+    const sha = baseSha();
+    if (!sha) return;
+    clearTimeout(autoTimer); autoTimer = null;
+    const json = dataJson();
+    localStorage.setItem(K_INFLIGHT, json);
+    ghPut(sha, json, true).then(p => {
+        if (p.ok) { localStorage.removeItem(K_INFLIGHT); setBase(p.sha, json); markSynced(); }
+        else if (!p.network) localStorage.removeItem(K_INFLIGHT);
+    });
+}
+
+// Bouton « Connecter » / « Entrer le code » : demande le code puis lance la 1re synchro
 function githubConnect() {
     const t = prompt("Colle ici ton code d'accès GitHub (il commence par github_pat_) :");
     if (!t || !t.trim()) return;
@@ -1263,135 +1443,102 @@ function githubConnect() {
     firstConnect();
 }
 
-// Première connexion sur cet appareil
 async function firstConnect() {
-    const r = await ghGet();
-    if (!r.ok) {
-        localStorage.removeItem(GH_TOKEN_KEY);
-        alert(r.auth
-            ? "Code d'accès refusé par GitHub. Vérifie que tu as copié le code EN ENTIER, puis réessaie."
-            : "Impossible de joindre GitHub. Vérifie ta connexion internet, puis réessaie.");
-        updateGHUI(false);
-        return;
-    }
-
-    const hasLocalData = !!localStorage.getItem('budget-gdrive');
-
-    if (r.exists) {
-        let useRemote = true;
-        if (hasLocalData) {
-            useRemote = confirm(
-                "Des données existent déjà en ligne.\n\n" +
-                "OK = charger les données EN LIGNE (elles remplacent celles de cet appareil)\n\n" +
-                "Annuler = envoyer les données de CET APPAREIL (elles remplacent celles en ligne)");
-        }
-        if (useRemote) {
-            D = r.data;
-            normalizeD();
-            localStorage.setItem('budget-gdrive', JSON.stringify(D));
-        } else {
-            const p = await ghPut();
-            if (!p.ok) { alert("Envoi impossible. Réessaie."); updateGHUI(false); return; }
-            alert('✅ Les données de cet appareil sont maintenant en ligne.');
-        }
-    } else {
-        // Aucun fichier en ligne : premier envoi avec les données de cet appareil
-        const p = await ghPut();
-        if (!p.ok) { alert("Envoi impossible. Réessaie."); updateGHUI(false); return; }
-        alert('✅ Premier envoi réussi : tes données sont en ligne (dépôt privé).');
-    }
-
-    updateGHUI(true);
-    document.getElementById('welcome').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
+    netState = 'ok';
+    await syncNow({ first: true, manual: true });
+    if (!hasToken()) return; // refus ou réseau : message déjà affiché
+    showApp();
     render();
-
-    if (pendingSave) { pendingSave = false; saveToGitHub(); }
+    showStatus();
 }
 
-// Sauvegarder (bouton 💾)
+// Bouton 💾 : envoi immédiat (l'envoi automatique reste actif)
 async function saveToGitHub() {
-    // Toujours garder une copie sur l'appareil d'abord : rien ne peut se perdre
-    localStorage.setItem('budget-gdrive', JSON.stringify(D));
-
-    if (!hasToken()) { pendingSave = true; githubConnect(); return; }
-
-    if (!ghSha) {
-        const r = await ghGet(); // récupère la référence du fichier (ou constate qu'il n'existe pas)
-        if (!r.ok) { handleSaveFail(r); return; }
-    }
-
-    let p = await ghPut();
-    if (p.conflict) {
-        // Le fichier a été modifié depuis un autre appareil entre-temps :
-        // on récupère la nouvelle référence et on renvoie (dernière sauvegarde gagne)
-        const r2 = await ghGet();
-        if (r2.ok) p = await ghPut();
-    }
-
-    if (p.ok) { alert('✅ Sauvegardé !'); updateGHUI(true); }
-    else handleSaveFail(p);
-}
-
-function handleSaveFail(p) {
-    if (p && p.auth) {
-        localStorage.removeItem(GH_TOKEN_KEY);
-        updateGHUI(false);
-        alert("Le code d'accès n'est plus valide. Clique sur « Entrer le code » et colle-le à nouveau.");
-    } else {
-        alert("Erreur de sauvegarde. Tes données sont gardées sur cet appareil : réessaie dans un instant.");
-    }
+    localStorage.setItem(K_LOCAL, dataJson());
+    if (!hasToken()) { githubConnect(); return; }
+    await syncNow({ manual: true });
 }
 
 // Retirer le code d'accès de cet appareil
 function githubDisconnect() {
     if (!confirm("Retirer le code d'accès de cet appareil ?\n(Tes données en ligne et locales sont conservées.)")) return;
     localStorage.removeItem(GH_TOKEN_KEY);
-    ghSha = null;
-    updateGHUI(false);
+    clearTimeout(autoTimer); clearTimeout(retryTimer);
+    showStatus();
 }
 
-// Bandeau d'état (mêmes éléments visuels qu'avant, textes adaptés)
-function updateGHUI(connected) {
+// « à 14 h 32 » aujourd'hui, « le 21/09 à 18 h 05 » sinon
+function lastSyncLabel() {
+    const s = localStorage.getItem(K_LASTSYNC);
+    if (!s) return '';
+    const d = new Date(s), now = new Date();
+    const hm = d.getHours() + '\u00a0h\u00a0' + String(d.getMinutes()).padStart(2, '0'); // espaces insécables : l'heure ne se coupe pas
+    if (d.toDateString() === now.toDateString()) return 'à\u00a0' + hm;
+    return 'le ' + d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' à ' + hm;
+}
+
+// Bandeau d'état : affiche l'état RÉEL (mêmes éléments et mêmes couleurs qu'avant)
+function showStatus(transitoire) {
     const bar = document.getElementById('gdriveBar');
     const user = document.getElementById('gdriveUser');
     const file = document.getElementById('gdriveFile');
     const btnConnect = document.getElementById('btnGoogleConnect');
     const btnDisconnect = document.getElementById('btnGoogleDisconnect');
 
-    if (connected) {
-        bar.classList.remove('disconnected');
-        user.textContent = '✅ Connecté';
-        file.textContent = '(' + GH_FILE + ', privé)';
-        btnConnect.style.display = 'none';
-        btnDisconnect.style.display = 'inline-block';
-    } else {
+    if (!hasToken()) {
         bar.classList.add('disconnected');
         user.textContent = "Code d'accès requis";
-        file.textContent = '';
+        file.textContent = isDirty() ? '(modifications gardées sur cet appareil)' : '';
         btnConnect.textContent = 'Entrer le code';
         btnConnect.style.display = 'inline-block';
         btnDisconnect.style.display = 'none';
+        return;
     }
+    btnConnect.style.display = 'none';
+    btnDisconnect.style.display = 'inline-block';
+
+    const dirty = isDirty();
+    const quand = lastSyncLabel();
+    let txt, alerte = false, detail = '(' + GH_FILE + ', privé)';
+    if (transitoire === 'sync') txt = '🔄 Synchronisation…';
+    else if (netState === 'offline') {
+        alerte = true;
+        txt = dirty ? '⚠️ Hors connexion : modifications gardées sur cet appareil' : '⚠️ Hors connexion';
+        if (quand) detail = '(dernière synchro ' + quand + ')';
+    }
+    else if (netState === 'error') { alerte = true; txt = '⚠️ Envoi en échec : nouvel essai automatique'; }
+    else if (dirty) txt = "⏳ Modifications en attente d'envoi";
+    else txt = '✅ Synchronisé' + (quand ? ' ' + quand : '');
+
+    bar.classList.toggle('disconnected', alerte);
+    user.textContent = txt;
+    file.textContent = detail;
 }
 
 // ========== FICHIERS LOCAUX ==========
 
-function save() { localStorage.setItem('budget-gdrive', JSON.stringify(D)); }
+// Enregistre sur l'appareil puis programme l'envoi automatique
+function save() {
+    localStorage.setItem(K_LOCAL, dataJson());
+    scheduleAutoSend();
+}
+
+// Charger un fichier budget.json depuis l'appareil (secours) : remplace les données après confirmation
+function useLoadedData(data) {
+    if (!confirm("Charger ce fichier ? Il remplacera les données actuelles, puis la version en ligne à la prochaine synchronisation.")) return;
+    D = normalizeData(data);
+    showApp();
+    render();
+    save();
+}
 
 async function openFile() {
     if ('showOpenFilePicker' in window) {
         try {
             const [h] = await window.showOpenFilePicker({ types: [{ accept: { 'application/json': ['.json'] } }] });
             fileHandle = h;
-            D = JSON.parse(await (await h.getFile()).text());
-            if (!D.ir) D.ir = [];
-            if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
-            if (!D.suivi) D.suivi = { rev: { solde: 0 }, cm: { soldeAffiche: 0, att: [] } };
-            if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
-            document.getElementById('welcome').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
-            render(); return;
+            useLoadedData(JSON.parse(await (await h.getFile()).text()));
+            return;
         } catch (e) { if (e.name === 'AbortError') return; }
     }
     document.getElementById('fileIn').click();
@@ -1400,17 +1547,9 @@ async function openFile() {
 function loadFile(e) {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = ev => {
-        D = JSON.parse(ev.target.result);
-        if (!D.ir) D.ir = [];
-        if (!D.info) D.info = { brut: 0, netAvantIR: 0, irMontant: 0, irPourcent: 0 };
-        if (!D.suivi) D.suivi = { rev: { solde: 0 }, cm: { soldeAffiche: 0, att: [] } };
-        if (!D.suivi.cm.soldeAffiche && D.suivi.cm.solde) D.suivi.cm.soldeAffiche = D.suivi.cm.solde;
-        document.getElementById('welcome').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        render();
-    };
+    r.onload = ev => { useLoadedData(JSON.parse(ev.target.result)); };
     r.readAsText(f);
+    e.target.value = ''; // permet de recharger le même fichier
 }
 
 function saveFileLocal() {
@@ -1436,50 +1575,31 @@ async function boot() {
     localStorage.removeItem('budget-gdrive-consent');
 
     // 1) Affichage IMMÉDIAT depuis la copie locale (aucune attente réseau)
-    let hasLocal = false;
-    const saved = localStorage.getItem('budget-gdrive');
+    const saved = localStorage.getItem(K_LOCAL);
     if (saved) {
         try {
             D = JSON.parse(saved);
             normalizeD();
-            document.getElementById('welcome').style.display = 'none';
-            document.getElementById('app').style.display = 'block';
+            showApp();
             render();
-            hasLocal = true;
         } catch (e) {}
     }
+    if (saved || hasToken()) showStatus();
 
-    // 2) Code d'accès présent ? → synchro automatique, zéro clic
-    if (hasToken()) {
-        const r = await ghGet();
-        if (r.ok && r.exists) {
-            D = r.data;
-            normalizeD();
-            localStorage.setItem('budget-gdrive', JSON.stringify(D));
-            if (!hasLocal) {
-                document.getElementById('welcome').style.display = 'none';
-                document.getElementById('app').style.display = 'block';
-            }
-            render();
-            updateGHUI(true);
-        } else if (r.ok && !r.exists) {
-            // Code valide mais aucun fichier en ligne : on envoie la copie locale
-            if (hasLocal) await ghPut();
-            updateGHUI(true);
-        } else if (r.auth) {
-            // Code refusé (révoqué ?) : l'app tourne en local, bandeau « Entrer le code »
-            localStorage.removeItem(GH_TOKEN_KEY);
-            updateGHUI(false);
-        } else {
-            // Pas de réseau : l'app tourne sur la copie locale, la synchro reviendra
-            updateGHUI(true);
-        }
-    } else if (hasLocal) {
-        // 3) Pas encore de code sur cet appareil : bandeau « Entrer le code »
-        updateGHUI(false);
-    }
-    // 4) Ni copie locale ni code : écran d'accueil (premier lancement)
+    // 2) Code d'accès présent : synchro (reprise, envoi ou question en cas de conflit)
+    if (hasToken()) await syncNow();
+    // 3) Ni copie locale ni code : écran d'accueil (premier lancement)
 }
+
+// Retour au premier plan : on récupère ce qui a pu changer sur un autre appareil.
+// Passage en arrière-plan : on envoie tout de suite ce qui attend.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushOnHide();
+    else if (hasToken()) syncNow();
+});
+window.addEventListener('pagehide', flushOnHide);
+window.addEventListener('pageshow', e => { if (e.persisted && hasToken()) syncNow(); });
+window.addEventListener('online', () => { if (hasToken()) syncNow(); });
 </script>
 </body>
 </html>
