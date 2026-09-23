@@ -1289,11 +1289,23 @@ const K_INFLIGHT  = 'budget-gh-inflight';   // contenu en cours d'envoi (répons
 const K_LASTSYNC  = 'budget-gh-lastsync';   // date de la dernière synchro réussie
 const AUTOSEND_DELAY = 3000;                // délai d'envoi automatique après la dernière saisie
 const RETRY_DELAY    = 30000;               // nouvel essai tant que des modifs restent en attente
+const POLL_INTERVAL  = 30000;               // relecture périodique tant que la page est visible (ajout du 23/09/2026)
 
 let autoTimer = null;
 let retryTimer = null;
 let syncChain = Promise.resolve();  // les synchros s'exécutent l'une après l'autre, jamais en parallèle
 let netState = 'ok';                // 'ok' | 'offline' | 'error'
+
+// ----- Plusieurs onglets sur le même appareil (ajout du 23/09/2026) -----
+// La copie locale et la base sont PARTAGÉES par tous les onglets ; les données affichées (D) sont
+// propres à chaque onglet. Chaque onglet retient donc la version de la copie locale qu'il connaît
+// (tabLocal) : si un autre onglet l'a modifiée depuis, il la reprend AVANT toute synchro et ne
+// renvoie jamais sur GitHub des données plus anciennes que la copie partagée.
+let tabLocal = null;       // texte exact de la copie locale lue ou écrite en dernier par CET onglet
+let pendingAdopt = false;  // reprise différée : l'utilisateur était en train de saisir
+let ghEtag = null;         // empreinte de la dernière lecture complète (requête conditionnelle)
+let pollDelay = POLL_INTERVAL;
+let pollTimer = null;
 
 function hasToken() { return !!localStorage.getItem(GH_TOKEN_KEY); }
 
@@ -1336,6 +1348,41 @@ function normalizeData(d) {
 }
 function normalizeD() { normalizeData(D); }
 
+
+// Saisie en cours ? = un champ de l'app a été tapé et pas encore validé (on ne réaffiche pas sous les doigts).
+// Un curseur simplement posé dans un champ ne compte pas : il reste souvent là sur ordinateur.
+let fieldTyping = null;
+document.addEventListener('input', e => { if (document.getElementById('app').contains(e.target)) fieldTyping = e.target; }, true);
+document.addEventListener('change', e => { if (e.target === fieldTyping) fieldTyping = null; }, true);
+function isEditing() {
+    return !!fieldTyping && document.activeElement === fieldTyping;
+}
+// La copie locale partagée a-t-elle été modifiée par un autre onglet ?
+function localChangedElsewhere() {
+    const cur = localStorage.getItem(K_LOCAL);
+    return cur !== null && cur !== tabLocal;
+}
+// Reprendre dans cet onglet la copie locale écrite par un autre onglet
+function syncFromLocal() {
+    if (!localChangedElsewhere()) return false;
+    const cur = localStorage.getItem(K_LOCAL);
+    try {
+        D = normalizeData(JSON.parse(cur));
+        tabLocal = cur;
+        pendingAdopt = false;
+        showApp();
+        render();
+        showStatus();
+        return true;
+    } catch (e) { console.error('syncFromLocal:', e); return false; }
+}
+// Reprise immédiate, ou différée à la fin de la saisie en cours
+function refreshFromLocal() {
+    if (!localChangedElsewhere()) return;
+    if (isEditing()) { pendingAdopt = true; return; }
+    syncFromLocal();
+}
+
 function dataJson() { return JSON.stringify(D); }
 function baseSha() { return localStorage.getItem(K_BASE_SHA); }
 function setBase(sha, json) {
@@ -1356,10 +1403,16 @@ function showApp() {
 }
 
 // Lire budget.json dans le dépôt privé (ne modifie aucun état)
-async function ghGet() {
+async function ghGet(etag) {
     try {
-        const res = await fetch(GH_API, { cache: 'no-store', headers: ghHeaders() });
+        const headers = ghHeaders();
+        if (etag) headers['If-None-Match'] = etag; // 304 si rien n'a changé : ne consomme pas le quota GitHub
+        const res = await fetch(GH_API, { cache: 'no-store', headers: headers });
+        const pi = parseInt(res.headers.get('X-Poll-Interval'), 10); // cadence minimale demandée par GitHub
+        if (pi > 0) pollDelay = Math.max(POLL_INTERVAL, pi * 1000);
+        if (res.status === 304) return { ok: true, notModified: true };
         if (res.status === 200) {
+            ghEtag = res.headers.get('ETag') || null;
             const j = await res.json();
             const data = normalizeData(JSON.parse(b64ToUtf8((j.content || '').replace(/\n/g, ''))));
             return { ok: true, exists: true, sha: j.sha, data: data, json: JSON.stringify(data) };
@@ -1419,11 +1472,19 @@ function syncNow(opts) {
 
 async function doSync(opts) {
     if (!hasToken()) { showStatus(); return; }
+    // Garde-fou : un autre onglet a modifié la copie locale ; on la reprend d'abord.
+    // Si l'utilisateur saisit dans cet onglet, on remet la synchro à la fin de sa saisie.
+    if (localChangedElsewhere()) {
+        if (isEditing()) { pendingAdopt = true; return; }
+        syncFromLocal();
+    }
     clearTimeout(autoTimer); autoTimer = null;
-    showStatus('sync');
+    if (!opts.poll) showStatus('sync'); // la relecture périodique reste silencieuse
 
-    const r = await ghGet();
+    const r = await ghGet(opts.poll ? ghEtag : null);
     if (!r.ok) return syncFailed(r, opts);
+    if (r.notModified) return markSynced(); // rien n'a changé en ligne
+    if (opts.poll && isEditing()) return;   // saisie en cours : on attend la prochaine relecture
 
     // Envoi précédent arrivé à bon port mais réponse perdue (appareil mis en veille) : on le reconnaît
     const inflight = localStorage.getItem(K_INFLIGHT);
@@ -1476,6 +1537,7 @@ async function push(sha, opts) {
 function adopt(r) {
     D = r.data;
     localStorage.setItem(K_LOCAL, r.json);
+    tabLocal = r.json;
     setBase(r.sha, r.json);
     showApp();
     render();
@@ -1522,7 +1584,7 @@ function scheduleAutoSend() {
 // Mise en arrière-plan : envoi immédiat en une seule requête (keepalive), sans relecture préalable.
 // Si la version en ligne a changé entre-temps, GitHub refuse et le cas est traité au retour.
 function flushOnHide() {
-    if (!hasToken() || !isDirty()) return;
+    if (!hasToken() || localChangedElsewhere() || !isDirty()) return;
     const sha = baseSha();
     if (!sha) return;
     clearTimeout(autoTimer); autoTimer = null;
@@ -1549,11 +1611,14 @@ async function firstConnect() {
     showApp();
     render();
     showStatus();
+    schedulePoll();
 }
 
 // Bouton 💾 : envoi immédiat (l'envoi automatique reste actif)
 async function saveToGitHub() {
-    localStorage.setItem(K_LOCAL, dataJson());
+    if (localChangedElsewhere()) syncFromLocal(); // un autre onglet a plus récent : on le reprend d'abord
+    tabLocal = dataJson();
+    localStorage.setItem(K_LOCAL, tabLocal);
     if (!hasToken()) { githubConnect(); return; }
     await syncNow({ manual: true });
 }
@@ -1562,7 +1627,7 @@ async function saveToGitHub() {
 function githubDisconnect() {
     if (!confirm("Retirer le code d'accès de cet appareil ?\n(Tes données en ligne et locales sont conservées.)")) return;
     localStorage.removeItem(GH_TOKEN_KEY);
-    clearTimeout(autoTimer); clearTimeout(retryTimer);
+    clearTimeout(autoTimer); clearTimeout(retryTimer); clearTimeout(pollTimer);
     showStatus();
 }
 
@@ -1618,7 +1683,16 @@ function showStatus(transitoire) {
 
 // Enregistre sur l'appareil puis programme l'envoi automatique
 function save() {
-    localStorage.setItem(K_LOCAL, dataJson());
+    // Garde-fou : un autre onglet a modifié la copie locale pendant la saisie. Pas d'écrasement silencieux.
+    if (localChangedElsewhere()) {
+        const garderAutre = confirm(
+            "Les données ont été modifiées dans un autre onglet pendant ta saisie.\n\n" +
+            "OK = garder la version de l'autre onglet (ta dernière saisie est abandonnée)\n\n" +
+            "Annuler = garder la version de cet onglet (elle remplace l'autre)");
+        if (garderAutre) { syncFromLocal(); return; }
+    }
+    tabLocal = dataJson();
+    localStorage.setItem(K_LOCAL, tabLocal);
     scheduleAutoSend();
 }
 
@@ -1676,6 +1750,7 @@ async function boot() {
     // 1) Affichage IMMÉDIAT depuis la copie locale (aucune attente réseau)
     const saved = localStorage.getItem(K_LOCAL);
     if (saved) {
+        tabLocal = saved;
         try {
             D = JSON.parse(saved);
             normalizeD();
@@ -1686,19 +1761,56 @@ async function boot() {
     if (saved || hasToken()) showStatus();
 
     // 2) Code d'accès présent : synchro (reprise, envoi ou question en cas de conflit)
-    if (hasToken()) await syncNow();
+    if (hasToken()) { await syncNow(); schedulePoll(); }
     // 3) Ni copie locale ni code : écran d'accueil (premier lancement)
 }
 
 // Retour au premier plan : on récupère ce qui a pu changer sur un autre appareil.
 // Passage en arrière-plan : on envoie tout de suite ce qui attend.
+// Relecture périodique légère tant que la page est visible (requête conditionnelle)
+function schedulePoll() {
+    clearTimeout(pollTimer);
+    if (!hasToken() || document.visibilityState !== 'visible') return;
+    pollTimer = setTimeout(async () => {
+        if (document.visibilityState === 'visible' && hasToken() && !isEditing()) await syncNow({ poll: true });
+        schedulePoll();
+    }, pollDelay);
+}
+
+// Retour sur l'app (visibilité, focus de la fenêtre, page restaurée) : reprise de la copie locale
+// d'un autre onglet, puis relecture de GitHub. Focus et visibilité arrivent souvent ensemble :
+// une seule relecture par tranche de 2 secondes (ajout du 23/09/2026 : focus).
+let lastReturnCheck = 0;
+function checkOnReturn() {
+    refreshFromLocal();
+    if (!hasToken()) return;
+    schedulePoll();
+    const now = Date.now();
+    if (now - lastReturnCheck < 2000) return;
+    lastReturnCheck = now;
+    syncNow();
+}
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') flushOnHide();
-    else if (hasToken()) syncNow();
+    if (document.visibilityState === 'hidden') { clearTimeout(pollTimer); flushOnHide(); }
+    else checkOnReturn();
 });
+window.addEventListener('focus', checkOnReturn);
 window.addEventListener('pagehide', flushOnHide);
-window.addEventListener('pageshow', e => { if (e.persisted && hasToken()) syncNow(); });
+window.addEventListener('pageshow', e => { if (e.persisted) checkOnReturn(); });
 window.addEventListener('online', () => { if (hasToken()) syncNow(); });
+
+// Autre onglet de Budget sur cet appareil : reprise immédiate de sa copie locale (ajout du 23/09/2026).
+// Filtre sur les clés EXACTES de Budget : Daily Flow partage le même site et le même stockage.
+window.addEventListener('storage', e => {
+    if (e.storageArea !== localStorage || e.key === null) return;
+    if (e.key === K_LOCAL) refreshFromLocal();
+    else if (e.key === GH_TOKEN_KEY || e.key === K_BASE_SHA || e.key === K_LASTSYNC) showStatus();
+});
+// Fin de saisie : reprise différée si un autre onglet a écrit pendant la saisie
+document.addEventListener('focusout', e => {
+    if (e.target === fieldTyping) fieldTyping = null;
+    setTimeout(() => { if (pendingAdopt && !isEditing()) syncFromLocal(); }, 0);
+});
 </script>
 </body>
 </html>
