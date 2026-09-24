@@ -1282,10 +1282,13 @@ function renameBank(k) {
 // 3. la synchro se relance à l'ouverture, au retour au premier plan et au retour du réseau ;
 // 4. si les données ont changé des deux côtés, l'utilisateur choisit la version à garder.
 
-const K_LOCAL     = 'budget-gdrive';        // copie locale des données (nom historique conservé)
-const K_BASE_SHA  = 'budget-gh-base-sha';   // version en ligne de la dernière synchro réussie
-const K_BASE_JSON = 'budget-gh-base-json';  // contenu de cette version, pour repérer les modifs locales
-const K_INFLIGHT  = 'budget-gh-inflight';   // contenu en cours d'envoi (réponse perdue si mise en veille)
+// État local COMPLET dans une seule clé, toujours écrite d'un seul coup (version du 24/09/2026) :
+// { local : copie des données, baseSha / baseJson : version en ligne de la dernière synchro réussie,
+//   inflight : contenu en cours d'envoi }. Deux onglets ne peuvent plus laisser dans le stockage
+// la copie de l'un mêlée à la base de l'autre.
+const K_STATE = 'budget-etat';
+// Anciennes clés séparées (jusqu'au 23/09/2026) : lues une fois pour migration, puis supprimées
+const OLD_KEYS = { local: 'budget-gdrive', baseSha: 'budget-gh-base-sha', baseJson: 'budget-gh-base-json', inflight: 'budget-gh-inflight' };
 const K_LASTSYNC  = 'budget-gh-lastsync';   // date de la dernière synchro réussie
 const AUTOSEND_DELAY = 3000;                // délai d'envoi automatique après la dernière saisie
 const RETRY_DELAY    = 30000;               // nouvel essai tant que des modifs restent en attente
@@ -1295,6 +1298,38 @@ let autoTimer = null;
 let retryTimer = null;
 let syncChain = Promise.resolve();  // les synchros s'exécutent l'une après l'autre, jamais en parallèle
 let netState = 'ok';                // 'ok' | 'offline' | 'error'
+
+
+// ----- Lecture / écriture de l'état local (une seule clé) -----
+function readState() {
+    const vide = { local: null, baseSha: null, baseJson: null, inflight: null };
+    const raw = localStorage.getItem(K_STATE);
+    if (!raw) return vide;
+    try {
+        const st = JSON.parse(raw);
+        return {
+            local: typeof st.local === 'string' ? st.local : null,
+            baseSha: typeof st.baseSha === 'string' ? st.baseSha : null,
+            baseJson: typeof st.baseJson === 'string' ? st.baseJson : null,
+            inflight: typeof st.inflight === 'string' ? st.inflight : null
+        };
+    } catch (e) { return vide; }
+}
+// Relit l'état, applique les changements et réécrit le TOUT en une seule écriture
+function writeState(changes) {
+    const st = Object.assign(readState(), changes);
+    localStorage.setItem(K_STATE, JSON.stringify(st));
+    return st;
+}
+// Migration unique depuis les anciennes clés séparées
+function migrateState() {
+    if (localStorage.getItem(K_STATE) === null) {
+        const old = {};
+        Object.keys(OLD_KEYS).forEach(k => { old[k] = localStorage.getItem(OLD_KEYS[k]); });
+        if (old.local !== null || old.baseSha !== null) writeState(old);
+    }
+    Object.keys(OLD_KEYS).forEach(k => localStorage.removeItem(OLD_KEYS[k]));
+}
 
 // ----- Plusieurs onglets sur le même appareil (ajout du 23/09/2026) -----
 // La copie locale et la base sont PARTAGÉES par tous les onglets ; les données affichées (D) sont
@@ -1354,18 +1389,37 @@ function normalizeD() { normalizeData(D); }
 let fieldTyping = null;
 document.addEventListener('input', e => { if (document.getElementById('app').contains(e.target)) fieldTyping = e.target; }, true);
 document.addEventListener('change', e => { if (e.target === fieldTyping) fieldTyping = null; }, true);
+// Champ qui vient de recevoir le focus (ajout du 24/09/2026) : pendant quelques secondes, on ne
+// réaffiche pas, pour ne pas faire disparaître le champ que l'utilisateur vient de toucher.
+const FOCUS_GRACE = 3000;
+let focusEl = null, focusAt = 0, pendTimer = null;
+document.addEventListener('focusin', e => {
+    const t = e.target;
+    if ((t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') && document.getElementById('app').contains(t)) { focusEl = t; focusAt = Date.now(); }
+}, true);
 function isEditing() {
-    return !!fieldTyping && document.activeElement === fieldTyping;
+    if (fieldTyping && document.activeElement === fieldTyping) return true;              // saisie tapée, pas encore validée
+    return document.activeElement === focusEl && Date.now() - focusAt < FOCUS_GRACE;     // champ tout juste touché
+}
+// Reprise différée : on revérifie chaque seconde jusqu'à ce que l'utilisateur ne soit plus en saisie
+function schedulePending() {
+    clearTimeout(pendTimer);
+    pendTimer = setTimeout(() => {
+        if (!pendingAdopt) return;
+        if (isEditing()) return schedulePending();
+        syncFromLocal();
+        if (hasToken()) scheduleAutoSend();
+    }, 1000);
 }
 // La copie locale partagée a-t-elle été modifiée par un autre onglet ?
 function localChangedElsewhere() {
-    const cur = localStorage.getItem(K_LOCAL);
+    const cur = readState().local;
     return cur !== null && cur !== tabLocal;
 }
 // Reprendre dans cet onglet la copie locale écrite par un autre onglet
 function syncFromLocal() {
     if (!localChangedElsewhere()) return false;
-    const cur = localStorage.getItem(K_LOCAL);
+    const cur = readState().local;
     try {
         D = normalizeData(JSON.parse(cur));
         tabLocal = cur;
@@ -1379,21 +1433,22 @@ function syncFromLocal() {
 // Reprise immédiate, ou différée à la fin de la saisie en cours
 function refreshFromLocal() {
     if (!localChangedElsewhere()) return;
-    if (isEditing()) { pendingAdopt = true; return; }
+    if (isEditing()) { pendingAdopt = true; schedulePending(); return; }
     syncFromLocal();
 }
 
 function dataJson() { return JSON.stringify(D); }
-function baseSha() { return localStorage.getItem(K_BASE_SHA); }
-function setBase(sha, json) {
-    if (sha) localStorage.setItem(K_BASE_SHA, sha); else localStorage.removeItem(K_BASE_SHA);
-    localStorage.setItem(K_BASE_JSON, json);
+function baseSha() { return readState().baseSha; }
+// Nouvelle base (et, si fournis, copie et envoi en cours) : une seule écriture
+function setBase(sha, json, extra) {
+    writeState(Object.assign({ baseSha: sha || null, baseJson: json }, extra || {}));
     localStorage.setItem(K_LASTSYNC, new Date().toISOString());
 }
 // Modifs locales non envoyées ? (appareil jamais synchronisé : oui s'il a une copie locale)
 function isDirty() {
-    const base = localStorage.getItem(K_BASE_JSON);
-    if (base === null) return localStorage.getItem(K_LOCAL) !== null;
+    const st = readState();
+    const base = st.baseJson;
+    if (base === null) return st.local !== null;
     return dataJson() !== base;
 }
 
@@ -1475,25 +1530,33 @@ async function doSync(opts) {
     // Garde-fou : un autre onglet a modifié la copie locale ; on la reprend d'abord.
     // Si l'utilisateur saisit dans cet onglet, on remet la synchro à la fin de sa saisie.
     if (localChangedElsewhere()) {
-        if (isEditing()) { pendingAdopt = true; return; }
+        if (isEditing()) { pendingAdopt = true; schedulePending(); return; }
         syncFromLocal();
     }
     clearTimeout(autoTimer); autoTimer = null;
     if (!opts.poll) showStatus('sync'); // la relecture périodique reste silencieuse
 
+    const shaAvant = baseSha();               // repère pour détecter une réponse périmée
     const r = await ghGet(opts.poll ? ghEtag : null);
     if (!r.ok) return syncFailed(r, opts);
     if (r.notModified) return markSynced(); // rien n'a changé en ligne
+    // Garde-fou « réponse tardive » (ajout du 24/09/2026) : si un autre onglet a synchronisé ou modifié
+    // les données pendant la lecture, cette réponse peut être périmée. On la jette et on recommence.
+    if (baseSha() !== shaAvant || localChangedElsewhere()) {
+        if ((opts.relance || 0) >= 2) return; // la prochaine relecture reprendra la main
+        if (localChangedElsewhere()) { if (isEditing()) { pendingAdopt = true; schedulePending(); return; } syncFromLocal(); }
+        return doSync(Object.assign({}, opts, { relance: (opts.relance || 0) + 1 }));
+    }
     if (opts.poll && isEditing()) return;   // saisie en cours : on attend la prochaine relecture
 
     // Envoi précédent arrivé à bon port mais réponse perdue (appareil mis en veille) : on le reconnaît
-    const inflight = localStorage.getItem(K_INFLIGHT);
-    if (r.exists && inflight !== null && r.json === inflight) setBase(r.sha, inflight);
-    localStorage.removeItem(K_INFLIGHT);
+    const inflight = readState().inflight;
+    if (r.exists && inflight !== null && r.json === inflight) setBase(r.sha, inflight, { inflight: null });
+    else if (inflight !== null) writeState({ inflight: null });
 
     if (!r.exists) {
         // Aucun fichier en ligne : on envoie la copie de cet appareil s'il en a une
-        if (localStorage.getItem(K_LOCAL) !== null || opts.first) return push(null, opts);
+        if (readState().local !== null || opts.first) return push(null, opts);
         return markSynced();
     }
 
@@ -1508,24 +1571,23 @@ async function doSync(opts) {
     if (r.json === dataJson()) { setBase(r.sha, r.json); return markSynced(); } // mêmes données : pas de vrai conflit
     const garderEnLigne = confirm(
         "Tes données ont été modifiées à la fois sur cet appareil et en ligne (depuis un autre appareil) depuis la dernière synchronisation.\n\n" +
-        "OK = garder la version EN LIGNE (les modifications de cet appareil sont abandonnées)\n\n" +
-        "Annuler = garder la version de CET APPAREIL (elle remplace celle en ligne)");
+        "OK = garder la version EN LIGNE : les modifications de cet appareil non encore envoyées sont perdues.\n\n" +
+        "Annuler = garder la version de CET APPAREIL : les modifications faites sur l'autre appareil depuis la dernière synchronisation sont perdues.");
     if (garderEnLigne) return adopt(r);
     return push(r.sha, opts);
 }
 
 async function push(sha, opts) {
     const json = dataJson();
-    localStorage.setItem(K_INFLIGHT, json);
+    writeState({ inflight: json });
     const p = await ghPut(sha, json, false);
     if (p.ok) {
-        localStorage.removeItem(K_INFLIGHT);
-        setBase(p.sha, json);
+        setBase(p.sha, json, { inflight: null });
         markSynced();
         if (isDirty()) scheduleAutoSend(); // saisie faite pendant l'envoi
         return;
     }
-    if (!p.network) localStorage.removeItem(K_INFLIGHT); // échec certain : rien n'est parti
+    if (!p.network) writeState({ inflight: null }); // échec certain : rien n'est parti
     if (p.conflict && !opts.retried) {
         // La version en ligne a changé entre la lecture et l'envoi : synchro complète à nouveau
         await new Promise(res => setTimeout(res, 1500));
@@ -1536,9 +1598,8 @@ async function push(sha, opts) {
 
 function adopt(r) {
     D = r.data;
-    localStorage.setItem(K_LOCAL, r.json);
+    setBase(r.sha, r.json, { local: r.json }); // copie et base écrites ensemble
     tabLocal = r.json;
-    setBase(r.sha, r.json);
     showApp();
     render();
     markSynced();
@@ -1589,10 +1650,10 @@ function flushOnHide() {
     if (!sha) return;
     clearTimeout(autoTimer); autoTimer = null;
     const json = dataJson();
-    localStorage.setItem(K_INFLIGHT, json);
+    writeState({ inflight: json });
     ghPut(sha, json, true).then(p => {
-        if (p.ok) { localStorage.removeItem(K_INFLIGHT); setBase(p.sha, json); markSynced(); }
-        else if (!p.network) localStorage.removeItem(K_INFLIGHT);
+        if (p.ok) { setBase(p.sha, json, { inflight: null }); markSynced(); }
+        else if (!p.network) writeState({ inflight: null });
     });
 }
 
@@ -1618,7 +1679,7 @@ async function firstConnect() {
 async function saveToGitHub() {
     if (localChangedElsewhere()) syncFromLocal(); // un autre onglet a plus récent : on le reprend d'abord
     tabLocal = dataJson();
-    localStorage.setItem(K_LOCAL, tabLocal);
+    writeState({ local: tabLocal });
     if (!hasToken()) { githubConnect(); return; }
     await syncNow({ manual: true });
 }
@@ -1686,13 +1747,13 @@ function save() {
     // Garde-fou : un autre onglet a modifié la copie locale pendant la saisie. Pas d'écrasement silencieux.
     if (localChangedElsewhere()) {
         const garderAutre = confirm(
-            "Les données ont été modifiées dans un autre onglet pendant ta saisie.\n\n" +
-            "OK = garder la version de l'autre onglet (ta dernière saisie est abandonnée)\n\n" +
-            "Annuler = garder la version de cet onglet (elle remplace l'autre)");
+            "Un autre onglet de Budget a modifié les données pendant ta saisie.\n\n" +
+            "OK = garder la version de l'autre onglet : ta dernière saisie ici est perdue.\n\n" +
+            "Annuler = garder cet onglet : ta saisie est conservée, mais les modifications faites dans l'autre onglet depuis ton dernier affichage ici sont perdues.");
         if (garderAutre) { syncFromLocal(); return; }
     }
     tabLocal = dataJson();
-    localStorage.setItem(K_LOCAL, tabLocal);
+    writeState({ local: tabLocal });
     scheduleAutoSend();
 }
 
@@ -1748,7 +1809,8 @@ async function boot() {
     localStorage.removeItem('budget-gdrive-consent');
 
     // 1) Affichage IMMÉDIAT depuis la copie locale (aucune attente réseau)
-    const saved = localStorage.getItem(K_LOCAL);
+    migrateState();
+    const saved = readState().local;
     if (saved) {
         tabLocal = saved;
         try {
@@ -1803,8 +1865,8 @@ window.addEventListener('online', () => { if (hasToken()) syncNow(); });
 // Filtre sur les clés EXACTES de Budget : Daily Flow partage le même site et le même stockage.
 window.addEventListener('storage', e => {
     if (e.storageArea !== localStorage || e.key === null) return;
-    if (e.key === K_LOCAL) refreshFromLocal();
-    else if (e.key === GH_TOKEN_KEY || e.key === K_BASE_SHA || e.key === K_LASTSYNC) showStatus();
+    if (e.key === K_STATE) { refreshFromLocal(); showStatus(); }
+    else if (e.key === GH_TOKEN_KEY || e.key === K_LASTSYNC) showStatus();
 });
 // Fin de saisie : reprise différée si un autre onglet a écrit pendant la saisie
 document.addEventListener('focusout', e => {
