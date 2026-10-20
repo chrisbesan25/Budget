@@ -1809,6 +1809,21 @@ function round2(n) { return Math.round((n + Number.EPSILON) * 100) / 100; }
 
 window.onload = function() { boot(); };
 
+// Démarrage hors connexion (20/10/2026) : service worker sw.js, limité au dossier de l'app.
+// Désactivation : SW_ACTIF = false ; la page retire alors SON service worker et SES caches
+// (préfixe budget-sw-), sans toucher à Daily Flow, qui partage le même site.
+const SW_ACTIF = true;
+window.addEventListener('load', async () => {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+        if (SW_ACTIF) { await navigator.serviceWorker.register('./sw.js', { scope: './' }); return; }
+        const portee = new URL('./', location.href).href;
+        const reg = await navigator.serviceWorker.getRegistration(portee);
+        if (reg && reg.scope === portee) await reg.unregister();
+        for (const k of await caches.keys()) if (k.startsWith('budget-sw-')) await caches.delete(k);
+    } catch (e) { console.error('sw:', e); }
+});
+
 async function boot() {
     // Ménage : anciennes clés de la version Google Drive (sans toucher aux données)
     localStorage.removeItem('budget-gdrive-token');
