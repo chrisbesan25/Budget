@@ -5,7 +5,7 @@
 // Site partagé avec Daily Flow : ce fichier ne crée et ne supprime que des caches « budget-sw-* ».
 // Mise à jour : changer VERSION ; l'activation efface alors les anciens caches de Budget seulement.
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 const PREFIXE = 'budget-sw-';
 const CACHE = PREFIXE + VERSION;
 const PORTEE = self.registration.scope;              // https://chrisbesan25.github.io/Budget/
