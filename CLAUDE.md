@@ -51,7 +51,7 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 - Page en « réseau d'abord » : version en ligne revalidée (`cache: 'no-cache'`), sinon, sans réseau ou au-delà de 4 s, la dernière copie enregistrée ; une réponse arrivée en retard met la copie à jour pour l'ouverture suivante. Activation immédiate (`skipWaiting`, `clients.claim`).
 - Enregistrement dans `index.html` à l'événement `load`, constante `SW_ACTIF`.
 - Vérifié en réel le 20 octobre 2026 sur le PC et le téléphone Android : cache présent, ouverture sans réseau avec les données, saisie hors ligne gardée puis envoyée au retour du réseau, deux inscriptions distinctes (Budget et Daily Flow) dans `chrome://serviceworker-internals`.
-- Mise à jour réelle (passage de `VERSION` à `v2`) : à vérifier sur les deux appareils, voir « Ouvert ».
+- Mise à jour réelle vérifiée le 20 octobre 2026 sur le PC et le téléphone : passage de `VERSION` à `v2`, cache `budget-sw-v2` à la place de `budget-sw-v1`, ouverture sans réseau avec les données, cache de Daily Flow intact.
 - Limites connues :
   - premier lancement sans réseau non couvert : l'app doit avoir été ouverte une fois en ligne après chaque installation ;
   - une adresse sans barre finale (`/Budget`) ne s'ouvre pas hors ligne (redirection hors de la portée) : favoris et icônes doivent finir par `/Budget/` (vérifié le 20 octobre 2026) ;
@@ -92,11 +92,12 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
   - une modification de `sw.js` change toujours `VERSION` ; une modification de la seule page n'en a pas besoin ;
   - après un dépôt, ouvrir l'app **en ligne, avec un bon réseau**, sur chaque appareil, et vérifier que la nouvelle version est affichée avant toute saisie ;
   - une version qui change les clés ou le format des données doit savoir lire l'ancien format : une ancienne page peut encore tourner hors ligne ;
-  - avant de supprimer ou de renommer le dépôt : désactiver d'abord (voir « Désactivation ») et ouvrir l'app en ligne sur chaque appareil.
+  - avant de supprimer, de renommer le dépôt ou de le passer en privé (ce qui arrête GitHub Pages sur le plan gratuit) : désactiver d'abord (voir « Désactivation ») et ouvrir l'app en ligne sur chaque appareil, sinon l'ancienne copie reste servie sans fin.
 
 ## Ouvert
 
-- **Mise à jour réelle du service worker** : `VERSION` passée à `v2` le 20 octobre 2026 pour l'essayer ; à vérifier sur le PC et le téléphone (cache `budget-sw-v2` à la place de `budget-sw-v1`, données intactes, cache de Daily Flow intact), puis à noter ici.
+- Rien d'ouvert sur le démarrage hors connexion (chantier clos le 20 octobre 2026).
+- Hors périmètre, noté : refus 409 de GitHub avec deux onglets au retour du réseau, rattrapé sans perte (voir « Démarrage hors connexion »).
 
 ## Règle de mise à jour
 
