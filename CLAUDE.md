@@ -1,10 +1,11 @@
 # CLAUDE.md : Budget perso
 
-Fichier lu par Claude Code au début de chaque session sur ce dépôt. Il fait foi contre la mémoire. Établi le 19 octobre 2026 ; à mettre à jour à la fin de chaque chantier (voir « Règle de mise à jour »).
+Fichier lu par Claude Code au début de chaque session sur ce dépôt. Il fait foi contre la mémoire. Établi le 19 octobre 2026, mis à jour le 20 octobre 2026 (démarrage hors connexion) ; à mettre à jour à la fin de chaque chantier (voir « Règle de mise à jour »).
 
 ## L'app
 
-- Application de suivi du budget personnel de Christophe : un fichier `index.html` unique (HTML, CSS, JS), publié par GitHub Pages à l'adresse https://chrisbesan25.github.io/Budget/.
+- Application de suivi du budget personnel de Christophe : un fichier `index.html` (HTML, CSS, JS), publié par GitHub Pages à l'adresse https://chrisbesan25.github.io/Budget/ (toujours avec la barre finale).
+- Seule exception à la règle du fichier unique (20 octobre 2026) : `sw.js`, le service worker du démarrage hors connexion. `docs/sw-arret.js` est sa version d'arrêt de secours. `docs/fiche-pont-hors-connexion.md` résume le chantier pour les deux apps.
 - Dépôt de l'app **public** (chrisbesan25/Budget), choix maintenu : GitHub Pages exige un dépôt public sur le plan gratuit.
 - Données dans le dépôt **privé** chrisbesan25/budget-data, fichier `budget.json`, lu et écrit par l'API GitHub (point d'accès contents).
 - Accès par un code fine-grained limité à budget-data (lecture et écriture du contenu), collé une fois par appareil et rangé dans le navigateur (clé `budget-gh-token`). **Jamais aucun secret ni aucune donnée réelle dans ce dépôt.** Le jeu de départ `DEFAULT_DATA` reste vide.
@@ -42,7 +43,29 @@ Réponses en français, en le tutoyant, en commençant par « Christophe ». Auc
 
 ## Site partagé avec Daily Flow
 
-Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même site, chrisbesan25.github.io : **même stockage du navigateur et même espace de cache**. Les clés de Budget commencent par `budget-`, celles de Daily Flow par `daily-flow-v3` (et `df-uid`). Tout nom de cache ou de clé ajouté doit garder ce préfixe, et aucun code de Budget ne doit lire, modifier ou supprimer ce qui appartient à Daily Flow.
+Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même site, chrisbesan25.github.io : **même stockage du navigateur et même espace de cache**. Les clés de Budget commencent par `budget-`, celles de Daily Flow par `daily-flow-v3` (et `df-uid`). Caches du service worker : `budget-sw-*` pour Budget, `daily-flow-v3-sw-*` pour Daily Flow (20 octobre 2026). Tout nom de cache ou de clé ajouté doit garder ce préfixe, et aucun code de Budget ne doit lire, modifier ou supprimer ce qui appartient à Daily Flow.
+
+## Démarrage hors connexion (vérifié au banc et en réel le 20 octobre 2026)
+
+- `sw.js`, portée `/Budget/` seulement. Il ne garde que la page, dans le cache `budget-sw-<VERSION>`, et ne supprime que les caches `budget-sw-*`. Aucune autre requête n'est interceptée : les appels à api.github.com (lecture, envoi, keepalive) passent par le navigateur comme avant.
+- Page en « réseau d'abord » : version en ligne revalidée (`cache: 'no-cache'`), sinon, sans réseau ou au-delà de 4 s, la dernière copie enregistrée ; une réponse arrivée en retard met la copie à jour pour l'ouverture suivante. Activation immédiate (`skipWaiting`, `clients.claim`).
+- Enregistrement dans `index.html` à l'événement `load`, constante `SW_ACTIF`.
+- Vérifié en réel le 20 octobre 2026 sur le PC et le téléphone Android : cache présent, ouverture sans réseau avec les données, saisie hors ligne gardée puis envoyée au retour du réseau, deux inscriptions distinctes (Budget et Daily Flow) dans `chrome://serviceworker-internals`.
+- Mise à jour réelle (passage de `VERSION` à `v2`) : à vérifier sur les deux appareils, voir « Ouvert ».
+- Limites connues :
+  - premier lancement sans réseau non couvert : l'app doit avoir été ouverte une fois en ligne après chaque installation ;
+  - une adresse sans barre finale (`/Budget`) ne s'ouvre pas hors ligne (redirection hors de la portée) : favoris et icônes doivent finir par `/Budget/` (vérifié le 20 octobre 2026) ;
+  - après un déploiement, une ouverture hors ligne ou sur réseau lent sert l'ancienne page, sans signe visible, jusqu'à la prochaine ouverture en ligne rapide.
+- Refus 409 de GitHub avec deux onglets au retour du réseau : rattrapé sans perte ni question, comportement identique sans service worker (banc du 20 octobre 2026). Hors périmètre.
+
+### Désactivation (dans l'ordre de préférence)
+
+1. Mettre `SW_ACTIF = false` dans `index.html` et déposer : à la prochaine ouverture en ligne, la page retire son service worker et ses caches `budget-sw-*`, sans toucher à Daily Flow.
+2. Secours : remplacer le contenu de `sw.js` par celui de `docs/sw-arret.js` et déposer (à combiner avec 1 pour un arrêt complet).
+3. Sur un seul appareil, sans dépôt :
+   - PC : F12, Appli, Service workers, « Unregister » sur la portée `/Budget/`, puis Espace de stockage du cache : supprimer seulement `budget-sw-*`.
+   - Android : `chrome://serviceworker-internals` (page disponible, vérifié le 20 octobre 2026), « Unregister » sur la ligne dont la portée est `/Budget/` seulement.
+- **Ne jamais utiliser « Effacer les données du site » ni « Effacer et réinitialiser »** pour chrisbesan25.github.io : cela efface aussi la copie locale non envoyée, le code d'accès et toutes les données de Daily Flow. Avant toute manipulation, attendre que la synchro soit à jour.
 
 ## Banc d'essai : règles apprises
 
@@ -54,6 +77,10 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 - Saisie lettre par lettre, avec l'événement de frappe ; tout sélectionner avant de taper dans un champ rempli.
 - Intercepter les fenêtres de confirmation et choisir la réponse explicitement.
 - Données fictives uniquement. Un échec peut venir du banc lui-même : l'isoler avant de corriger l'app.
+- Service worker : lancer Playwright avec `PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS=1`, sinon les requêtes émises par le service worker échappent aux interceptions et partent sur le vrai réseau.
+- Pour une coupure réseau visible du service worker, faire tomber la connexion côté serveur local (socket fermée), en plus de `setOffline`.
+- Interception active = cache HTTP désactivé par Playwright : le cache HTTP (max-age=600 de GitHub Pages, redirection 301) n'est jamais testé au banc, seulement en réel.
+- Tester une vraie mise à jour : servir plusieurs versions (page et `sw.js` modifiés, version avec `SW_ACTIF = false`, version d'arrêt) et basculer de l'une à l'autre.
 
 ## Déploiement
 
@@ -61,10 +88,15 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 - GitHub Pages publie en quelques minutes ; recharger ensuite chaque appareil.
 - Si une version change les clés de stockage : fermer tous les onglets Budget sauf un sur chaque appareil avant de déployer.
 - Après tout dépôt fait hors session, ouvrir une nouvelle session Claude Code : une session travaille sur la copie du dépôt prise à son ouverture.
+- Service worker (depuis le 20 octobre 2026) :
+  - une modification de `sw.js` change toujours `VERSION` ; une modification de la seule page n'en a pas besoin ;
+  - après un dépôt, ouvrir l'app **en ligne, avec un bon réseau**, sur chaque appareil, et vérifier que la nouvelle version est affichée avant toute saisie ;
+  - une version qui change les clés ou le format des données doit savoir lire l'ancien format : une ancienne page peut encore tourner hors ligne ;
+  - avant de supprimer ou de renommer le dépôt : désactiver d'abord (voir « Désactivation ») et ouvrir l'app en ligne sur chaque appareil.
 
 ## Ouvert
 
-- **Démarrage hors connexion** (service worker, second fichier `sw.js`) : chantier ouvert le 19 octobre 2026, à traiter avec Daily Flow. Exigences connues : nom de cache préfixé et suppression limitée à ses propres caches ; portée limitée au dossier de l'app ; aucune interception des appels à api.github.com ; page en « réseau d'abord » ; procédure de désactivation ; essai d'une vraie mise à jour, pas seulement du premier chargement.
+- **Mise à jour réelle du service worker** : `VERSION` passée à `v2` le 20 octobre 2026 pour l'essayer ; à vérifier sur le PC et le téléphone (cache `budget-sw-v2` à la place de `budget-sw-v1`, données intactes, cache de Daily Flow intact), puis à noter ici.
 
 ## Règle de mise à jour
 
