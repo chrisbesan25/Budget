@@ -65,7 +65,8 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 3. Sur un seul appareil, sans dépôt :
    - PC : F12, Appli, Service workers, « Unregister » sur la portée `/Budget/`, puis Espace de stockage du cache : supprimer seulement `budget-sw-*`.
    - Android : `chrome://serviceworker-internals` (page disponible, vérifié le 20 octobre 2026), « Unregister » sur la ligne dont la portée est `/Budget/` seulement.
-- **Ne jamais utiliser « Effacer les données du site » ni « Effacer et réinitialiser »** pour chrisbesan25.github.io : cela efface aussi la copie locale non envoyée, le code d'accès et toutes les données de Daily Flow. Avant toute manipulation, attendre que la synchro soit à jour.
+- **Ne jamais utiliser « Effacer les données du site » ni « Effacer et réinitialiser » pour désactiver le service worker** (utiliser les trois moyens ci-dessus) : cela efface aussi la copie locale non envoyée, le code d'accès et toutes les données de Daily Flow.
+- Nettoyage complet du navigateur (habitude de Christophe, cookies compris) : possible. Avant, vérifier que tout est envoyé dans les deux apps ; après, rouvrir chaque app une fois en ligne et ressaisir les codes, ce qui remet en place le démarrage hors connexion. L'exception « toujours autoriser les cookies » de Chrome ne protège pas d'un nettoyage manuel (règle convenue le 20 octobre 2026).
 
 ## Banc d'essai : règles apprises
 
