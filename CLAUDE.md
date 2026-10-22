@@ -89,7 +89,7 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 - GitHub Pages publie en quelques minutes ; recharger ensuite chaque appareil.
 - Si une version change les clés de stockage : fermer tous les onglets Budget sauf un sur chaque appareil avant de déployer.
 - Après tout dépôt fait hors session, ouvrir une nouvelle session Claude Code : une session travaille sur la copie du dépôt prise à son ouverture.
-- Crochet de reprise de session (22 octobre 2026) : `.claude/settings.json` lance `.claude/hooks/reprise-session.sh` au démarrage de chaque session. Il fait `git fetch`, puis alerte si `main` ou la branche de travail en ligne a changé depuis la dernière session ou contient des commits absents de la copie de travail ; il ne modifie rien. Repère gardé dans `.git/budget-reprise-session` (perdu avec le conteneur : dans une copie neuve, seule la comparaison avec la copie de travail joue). Il complète la règle précédente, qui reste.
+- Crochet de reprise de session (22 octobre 2026) : `.claude/settings.json` lance `.claude/hooks/reprise-session.sh` au démarrage de chaque session. Il fait `git fetch`, puis alerte si `main` ou la branche de travail en ligne a changé depuis la dernière session ou contient des commits absents de la copie de travail ; il ne modifie rien. Repère gardé dans `.git/budget-reprise-session` (perdu avec le conteneur : dans une copie neuve, seule la comparaison avec la copie de travail joue). Il complète la règle précédente, qui reste. Vérifié en réel le 22 octobre 2026 côté Claude (deux reprises de session, écart bien détecté) ; l'affichage de l'alerte chez Christophe n'est pas garanti (rien vu le 22 octobre 2026). **Règle : quand le crochet signale une alerte ou un échec de `git fetch`, Claude la relaie à Christophe en tête de sa première réponse**, même si la demande porte sur autre chose.
 - Service worker (depuis le 20 octobre 2026) :
   - une modification de `sw.js` change toujours `VERSION` ; une modification de la seule page n'en a pas besoin ;
   - après un dépôt, ouvrir l'app **en ligne, avec un bon réseau**, sur chaque appareil, et vérifier que la nouvelle version est affichée avant toute saisie ;
@@ -100,7 +100,7 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 
 - Rien d'ouvert sur le démarrage hors connexion (chantier clos le 20 octobre 2026).
 - Charte de l'app : rien d'ouvert. Tous les couples sous les seuils sont acceptés par écrit (22 septembre et 22 octobre 2026, section 5.1 de `docs/charte-application.md`).
-- Crochet de reprise de session : vérifié au banc le 22 octobre 2026, pas encore en réel au démarrage d'une session.
+- Crochet de reprise de session : vérifié au banc et en réel (côté Claude) le 22 octobre 2026 ; relais de l'alerte par Claude à confirmer à la prochaine reprise qui en déclenche une.
 - Hors périmètre, noté : refus 409 de GitHub avec deux onglets au retour du réseau, rattrapé sans perte (voir « Démarrage hors connexion »).
 
 ## Règle de mise à jour
