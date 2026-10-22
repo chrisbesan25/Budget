@@ -1,6 +1,6 @@
 # Charte de l'application Budget
 
-**Version 1.0 du 22 octobre 2026 · Christophe**
+**Version 1.1 du 22 octobre 2026 · Christophe** (1.0 du même jour : relevé ; 1.1 : décisions de Christophe sur les couples sous les seuils)
 
 > **Ce document décrit, il ne prescrit pas.** Il relève l'allure que l'application applique aujourd'hui, à partir de son code, comme le prévoit la section 7.1 de la charte des livrables (version 1.6.8 du 21 octobre 2026). Il ne change rien à l'application : ni couleur, ni police, ni mise en page.
 >
@@ -16,7 +16,7 @@ La charte des livrables (section 7.1) donne à chaque application sa propre char
 
 Les seuils de contraste restent obligatoires, **sauf pour les couples que Christophe a acceptés par écrit et que la section 5.1 énumère**. Un couple nouveau sous le seuil se soumet à Christophe avant d'être employé.
 
-**Point à trancher par Christophe.** L'app emploie aujourd'hui d'autres couples sous les seuils, sans accord écrit connu (section 5.2). La section 7.1 de la charte des livrables disait qu'en attendant la charte de l'app, « leur allure actuelle fait foi ». Maintenant que la charte est écrite, chacun de ces couples doit soit être accepté par écrit (il passe alors en 5.1, avec sa date), soit être corrigé lors d'un chantier ultérieur. Ce document ne tranche pas : il les liste.
+**Décision du 22 octobre 2026.** Le relevé a trouvé, en plus du blanc sur jaune et sur orange, d'autres couples sous les seuils. Christophe les a tous acceptés tels quels le 22 octobre 2026, famille par famille, et a confirmé que l'accord du 22 septembre 2026 couvre les variantes atténuées du jaune et de l'orange. Tous ces couples sont énumérés en section 5.1 ; au 22 octobre 2026, l'app n'emploie aucun couple sous les seuils sans accord écrit.
 
 ---
 
@@ -118,6 +118,10 @@ Rayons : 12 px pour les rectangles de synthèse, les cartes du suivi et l'histor
 
 ### 5.1 Couples acceptés par écrit
 
+Deux accords écrits de Christophe, l'un du 22 septembre 2026, l'autre du 22 octobre 2026.
+
+#### Accord du 22 septembre 2026 : blanc sur jaune et sur orange
+
 **Blanc sur jaune `#eab308` et blanc sur orange `#ea580c` : acceptés par Christophe le 22 septembre 2026** (charte des livrables 1.6.8, section 7.1 ; `CLAUDE.md`, « Ne pas casser »).
 
 | Élément | Texte | Fond | Taille, graisse | Seuil | Contraste |
@@ -131,7 +135,7 @@ Rayons : 12 px pour les rectangles de synthèse, les cartes du suivi et l'histor
 
 Le montant du rectangle « Charges Revolut » (19,2 px, gras, texte large) atteint 3,56 pour un seuil de 3 : il passe.
 
-**Variantes atténuées des mêmes couples.** L'accord du 22 septembre 2026 nomme le blanc sur jaune et sur orange sans préciser s'il couvre les rendus atténués suivants. **À confirmer par Christophe.**
+**Variantes atténuées des mêmes couples : couvertes par l'accord du 22 septembre 2026**, ce que Christophe a confirmé le 22 octobre 2026.
 
 | Élément | Texte | Fond | Taille, graisse | Seuil | Contraste |
 |---|---|---|---|---|---|
@@ -143,9 +147,9 @@ Le montant du rectangle « Charges Revolut » (19,2 px, gras, texte large) attei
 | Survol d'un nom de ligne Salaire (opacité 90 %, PC) | blanc | `#ecbb21` | 13,6 px, gras | 4,5 | 1,80 |
 | Survol d'un nom de ligne Revolut (opacité 90 %, PC) | blanc | `#ec6924` | 13,6 px, gras | 4,5 | 3,18 |
 
-### 5.2 Couples sous le seuil sans accord écrit connu
+#### Accord du 22 octobre 2026 : autres couples
 
-Aucun accord écrit n'a été trouvé pour les couples suivants (ni dans `CLAUDE.md`, ni dans la charte des livrables 1.6.8). Ils sont gardés tels quels : **à soumettre à Christophe**, couple par couple (voir section 1).
+**Acceptés tels quels par Christophe le 22 octobre 2026**, famille par famille : libellés des rectangles, champs des rectangles, bandeau et accueil, historique de l'impôt, petits boutons, textes secondaires. Avant cette date, aucun accord écrit ne les couvrait.
 
 **Libellés des rectangles de synthèse** (blanc à 90 %, 10,4 px gras ; 11,2 px sous 500 px) :
 
@@ -211,9 +215,15 @@ Aucun accord écrit n'a été trouvé pour les couples suivants (ni dans `CLAUDE
 | Remboursement négatif, ligne orange | rouge | `#fed7aa` | idem | 4,5 | 3,57 |
 | Remboursement négatif, ligne violette | rouge | `#e9d5ff` | idem | 4,5 | 3,55 |
 
-**Pour information, hors texte.** La section 1.11 de la charte des livrables ne vise que le texte. Deux repères graphiques sont sous 3 pour 1 face à leur fond : le bord des cases de pointage non cochées (`#cbd5e1` sur blanc, 1,48) et la pastille verte de la barre d'état (`#16a34a` sur `#e8f5e9`, 2,93). La case pointée (vert plein, coche blanche) atteint 3,30.
+### 5.2 Couples sous le seuil sans accord écrit
 
-### 5.3 Couples au-dessus des seuils (principaux)
+Aucun au 22 octobre 2026. Un couple nouveau sous le seuil se soumet à Christophe avant d'être employé (section 7).
+
+### 5.3 Repères graphiques, hors texte
+
+**Pour information.** La section 1.11 de la charte des livrables ne vise que le texte. Deux repères graphiques sont sous 3 pour 1 face à leur fond : le bord des cases de pointage non cochées (`#cbd5e1` sur blanc, 1,48) et la pastille verte de la barre d'état (`#16a34a` sur `#e8f5e9`, 2,93). La case pointée (vert plein, coche blanche) atteint 3,30.
+
+### 5.4 Couples au-dessus des seuils (principaux)
 
 | Texte | Fond | Contraste | Où |
 |---|---|---|---|
@@ -222,7 +232,7 @@ Aucun accord écrit n'a été trouvé pour les couples suivants (ni dans `CLAUDE
 | blanc | bleu `#2563eb` | 5,17 | Section, lignes et carte CM, boutons bleus, flèches du mois, titre du bandeau (côté bleu) |
 | blanc | violet `#7c3aed` | 5,70 | Section et lignes Ponctuelles, titre du bandeau (côté violet) |
 | blanc à 90 % | violet | 4,91 | Libellé « Charges ponctuelles » |
-| blanc | rose `#db2777` | 4,60 | (aucun texte plein ; voir 5.2 pour le libellé et les champs) |
+| blanc | rose `#db2777` | 4,60 | (aucun texte plein ; voir 5.1 pour le libellé et les champs) |
 | blanc | gris ardoise `#64748b` | 4,76 | Montant « Total charges récurrent » |
 | blanc | rouge `#dc2626` | 4,83 | Montants du reste négatif, survol des boutons × |
 | blanc | vert `#16a34a` | 3,30 | Montants « Reste/mois », « Reste/an » (19,2 px, gras, texte large : seuil 3) |
