@@ -1,11 +1,11 @@
 # CLAUDE.md : Budget perso
 
-Fichier lu par Claude Code au début de chaque session sur ce dépôt. Il fait foi contre la mémoire. Établi le 19 octobre 2026, mis à jour le 20 octobre 2026 (démarrage hors connexion) ; à mettre à jour à la fin de chaque chantier (voir « Règle de mise à jour »).
+Fichier lu par Claude Code au début de chaque session sur ce dépôt. Il fait foi contre la mémoire. Établi le 19 octobre 2026, mis à jour le 20 octobre 2026 (démarrage hors connexion) et le 22 octobre 2026 (charte de l'app, crochet de reprise de session) ; à mettre à jour à la fin de chaque chantier (voir « Règle de mise à jour »).
 
 ## L'app
 
 - Application de suivi du budget personnel de Christophe : un fichier `index.html` (HTML, CSS, JS), publié par GitHub Pages à l'adresse https://chrisbesan25.github.io/Budget/ (toujours avec la barre finale).
-- Seule exception à la règle du fichier unique (20 octobre 2026) : `sw.js`, le service worker du démarrage hors connexion. `docs/sw-arret.js` est sa version d'arrêt de secours. `docs/fiche-pont-hors-connexion.md` résume le chantier pour les deux apps.
+- Seule exception à la règle du fichier unique (20 octobre 2026) : `sw.js`, le service worker du démarrage hors connexion. `docs/sw-arret.js` est sa version d'arrêt de secours. `docs/fiche-pont-hors-connexion.md` résume le chantier pour les deux apps. `docs/charte-application.md` décrit l'allure de l'app (polices, couleurs, contrastes).
 - Dépôt de l'app **public** (chrisbesan25/Budget), choix maintenu : GitHub Pages exige un dépôt public sur le plan gratuit.
 - Données dans le dépôt **privé** chrisbesan25/budget-data, fichier `budget.json`, lu et écrit par l'API GitHub (point d'accès contents).
 - Accès par un code fine-grained limité à budget-data (lecture et écriture du contenu), collé une fois par appareil et rangé dans le navigateur (clé `budget-gh-token`). **Jamais aucun secret ni aucune donnée réelle dans ce dépôt.** Le jeu de départ `DEFAULT_DATA` reste vide.
@@ -24,7 +24,7 @@ Réponses en français, en le tutoyant, en commençant par « Christophe ». Auc
 
 ## Ne pas casser
 
-- **Charte graphique de l'app figée** : fonds colorés pleins et texte blanc gras (Salaire jaune, CM bleu, Revolut orange, Ponctuelles violet...). Aucune couleur ne change sans l'accord de Christophe. Le blanc sur jaune et sur orange est accepté tel quel. La charte des livrables du projet ne s'applique pas à l'app.
+- **Charte graphique de l'app figée** : fonds colorés pleins et texte blanc gras (Salaire jaune, CM bleu, Revolut orange, Ponctuelles violet...). Aucune couleur ne change sans l'accord de Christophe. Le blanc sur jaune et sur orange est accepté tel quel. La charte de l'app (docs/charte-application.md, copie dans le Contexte du projet Claude) fixe son allure ; la charte des livrables (section 7.1) s'applique pour le reste, et tout nouveau couple de couleurs sous les seuils de contraste se soumet à Christophe avant emploi.
 - 10 rectangles de synthèse : 5 lignes de 2 sous 700 px, 2 lignes de 5 de 700 à 1 199 px, 1 ligne de 10 à partir de 1 200 px. Ventilation en trois colonnes (Salaire et Ponctuelles, CM, Revolut) à partir de 1 000 px.
 - Sélecteur de mois unique, avec l'année. Pointage par occurrence : un mois n'affiche que les cases de son occurrence la plus proche (6 mois en arrière, 5 en avant) ; les rectangles ne dépendent pas des cases.
 - Suivi des comptes : Appliquer (montant positif = dépense), dernière opération visible (« 50,00 € »), dépenses en attente CM déduites du solde.
@@ -89,6 +89,7 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 - GitHub Pages publie en quelques minutes ; recharger ensuite chaque appareil.
 - Si une version change les clés de stockage : fermer tous les onglets Budget sauf un sur chaque appareil avant de déployer.
 - Après tout dépôt fait hors session, ouvrir une nouvelle session Claude Code : une session travaille sur la copie du dépôt prise à son ouverture.
+- Crochet de reprise de session (22 octobre 2026) : `.claude/settings.json` lance `.claude/hooks/reprise-session.sh` au démarrage de chaque session. Il fait `git fetch`, puis alerte si `main` ou la branche de travail en ligne a changé depuis la dernière session ou contient des commits absents de la copie de travail ; il ne modifie rien. Repère gardé dans `.git/budget-reprise-session` (perdu avec le conteneur : dans une copie neuve, seule la comparaison avec la copie de travail joue). Il complète la règle précédente, qui reste.
 - Service worker (depuis le 20 octobre 2026) :
   - une modification de `sw.js` change toujours `VERSION` ; une modification de la seule page n'en a pas besoin ;
   - après un dépôt, ouvrir l'app **en ligne, avec un bon réseau**, sur chaque appareil, et vérifier que la nouvelle version est affichée avant toute saisie ;
@@ -98,6 +99,7 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 ## Ouvert
 
 - Rien d'ouvert sur le démarrage hors connexion (chantier clos le 20 octobre 2026).
+- Charte de l'app (22 octobre 2026) : couples de couleurs sous les seuils sans accord écrit, listés en section 5.2 de `docs/charte-application.md`, à soumettre à Christophe couple par couple ; variantes atténuées du blanc sur jaune et sur orange (section 5.1) : couverture par l'accord du 22 septembre 2026 à confirmer. Crochet de reprise de session vérifié au banc le 22 octobre 2026, pas encore en réel au démarrage d'une session.
 - Hors périmètre, noté : refus 409 de GitHub avec deux onglets au retour du réseau, rattrapé sans perte (voir « Démarrage hors connexion »).
 
 ## Règle de mise à jour
