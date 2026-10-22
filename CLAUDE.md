@@ -24,7 +24,7 @@ Réponses en français, en le tutoyant, en commençant par « Christophe ». Auc
 
 ## Ne pas casser
 
-- **Charte graphique de l'app figée** : fonds colorés pleins et texte blanc gras (Salaire jaune, CM bleu, Revolut orange, Ponctuelles violet...). Aucune couleur ne change sans l'accord de Christophe. Le blanc sur jaune et sur orange est accepté tel quel. La charte de l'app (docs/charte-application.md, copie dans le Contexte du projet Claude) fixe son allure ; la charte des livrables (section 7.1) s'applique pour le reste, et tout nouveau couple de couleurs sous les seuils de contraste se soumet à Christophe avant emploi.
+- **Charte graphique de l'app figée** : fonds colorés pleins et texte blanc gras (Salaire jaune, CM bleu, Revolut orange, Ponctuelles violet...). Aucune couleur ne change sans l'accord de Christophe. Le blanc sur jaune et sur orange est accepté tel quel (22 septembre 2026), comme les autres couples sous les seuils énumérés dans la charte de l'app (22 octobre 2026). La charte de l'app (docs/charte-application.md, copie dans le Contexte du projet Claude) fixe son allure ; la charte des livrables (section 7.1) s'applique pour le reste, et tout nouveau couple de couleurs sous les seuils de contraste se soumet à Christophe avant emploi.
 - 10 rectangles de synthèse : 5 lignes de 2 sous 700 px, 2 lignes de 5 de 700 à 1 199 px, 1 ligne de 10 à partir de 1 200 px. Ventilation en trois colonnes (Salaire et Ponctuelles, CM, Revolut) à partir de 1 000 px.
 - Sélecteur de mois unique, avec l'année. Pointage par occurrence : un mois n'affiche que les cases de son occurrence la plus proche (6 mois en arrière, 5 en avant) ; les rectangles ne dépendent pas des cases.
 - Suivi des comptes : Appliquer (montant positif = dépense), dernière opération visible (« 50,00 € »), dépenses en attente CM déduites du solde.
@@ -99,7 +99,8 @@ Daily Flow (dépôt chrisbesan25/daily-flow-v2-claude) est publié sur le même 
 ## Ouvert
 
 - Rien d'ouvert sur le démarrage hors connexion (chantier clos le 20 octobre 2026).
-- Charte de l'app (22 octobre 2026) : couples de couleurs sous les seuils sans accord écrit, listés en section 5.2 de `docs/charte-application.md`, à soumettre à Christophe couple par couple ; variantes atténuées du blanc sur jaune et sur orange (section 5.1) : couverture par l'accord du 22 septembre 2026 à confirmer. Crochet de reprise de session vérifié au banc le 22 octobre 2026, pas encore en réel au démarrage d'une session.
+- Charte de l'app : rien d'ouvert. Tous les couples sous les seuils sont acceptés par écrit (22 septembre et 22 octobre 2026, section 5.1 de `docs/charte-application.md`).
+- Crochet de reprise de session : vérifié au banc le 22 octobre 2026, pas encore en réel au démarrage d'une session.
 - Hors périmètre, noté : refus 409 de GitHub avec deux onglets au retour du réseau, rattrapé sans perte (voir « Démarrage hors connexion »).
 
 ## Règle de mise à jour
