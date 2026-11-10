@@ -1,6 +1,6 @@
 # CLAUDE.md : Budget perso
 
-Fichier lu par Claude Code au début de chaque session sur ce dépôt. Il fait foi contre la mémoire. Établi le 19 octobre 2026, mis à jour le 20 octobre 2026 (démarrage hors connexion) et le 22 octobre 2026 (charte de l'app, crochet de reprise de session) ; à mettre à jour à la fin de chaque chantier (voir « Règle de mise à jour »).
+Fichier lu par Claude Code au début de chaque session sur ce dépôt. Il fait foi contre la mémoire. Établi le 19 octobre 2026, mis à jour le 20 octobre 2026 (démarrage hors connexion) et le 22 octobre 2026 (charte de l'app, crochet de reprise de session) et le 10 novembre 2026 (secrets et réglages de Claude Code) ; à mettre à jour à la fin de chaque chantier (voir « Règle de mise à jour »).
 
 ## L'app
 
@@ -21,6 +21,19 @@ Fichier lu par Claude Code au début de chaque session sur ce dépôt. Il fait f
 5. Déploiement et tests réels guidés pas à pas sur ses appareils.
 
 Réponses en français, en le tutoyant, en commençant par « Christophe ». Aucun tiret cadratin (U+2014), demi-cadratin (U+2013) ni signe moins typographique (U+2212), y compris dans le code et ses commentaires. Signaler ce qui n'a pas pu être vérifié.
+
+## Secrets et réglages de Claude Code (10 novembre 2026)
+
+Contexte : selon l'étude d'Apiiro du 5 novembre 2026 (relayée par The Hacker News le 7 novembre), répondre « Oui, et ne plus demander » à une demande d'autorisation enregistre la commande telle quelle, mot de passe ou clé compris, dans `.claude/settings.local.json` ; un bogue signalé l'écrit parfois dans `.claude/settings.json`, qui est versionné ici. L'exclusion que Claude Code pose sur la machine ne vaut pas dans les sessions web : chaque session part d'un conteneur neuf (aucune exclusion globale constatée le 10 novembre 2026). Seul le `.gitignore` du dépôt protège. Contrôle du 9 novembre 2026 sur tout l'historique, toutes branches : aucun secret, aucune donnée réelle.
+
+- Aucun secret dans une commande. Claude ne fait jamais passer dans une commande le code d'accès à budget-data ni aucun autre jeton GitHub. Si une tâche semble l'exiger, Claude s'arrête et propose une autre voie (manipulation faite par Christophe dans l'app ou sur GitHub).
+- Au clic. Si une demande d'autorisation porte malgré tout sur une commande qui contient une valeur sensible, Claude le dit à Christophe avant qu'il réponde : « Oui » pour cette fois seulement, jamais « Oui, et ne plus demander ».
+- Avant chaque commit. Relire la liste des fichiers indexés (`git diff --cached --name-only`) ; jamais de `git add -A` sans cette relecture, jamais de `git add -f`. `.claude/settings.local.json`, `CLAUDE.local.md` et les fichiers `.env` sont exclus par `.gitignore`. `.claude/settings.json` ne contient que le crochet de reprise de session : s'il contient une section `permissions` ou toute autre valeur nouvelle, s'arrêter et prévenir Christophe avant de valider.
+- Si un secret ou une donnée réelle part quand même dans ce dépôt (public) : le tenir pour compromis, même supprimé aussitôt, car l'historique, les copies et les clones le gardent. Dans l'ordre :
+  1. révoquer et renouveler d'abord : code d'accès révoqué dans GitHub (Settings, Developer settings, Personal access tokens, Fine-grained tokens), nouveau code limité à budget-data (contenu en lecture et écriture), collé sur chaque appareil ;
+  2. ensuite seulement, retirer la valeur du dépôt ; réécrire l'historique ne se fait qu'avec l'accord de Christophe et n'efface pas les copies déjà faites ;
+  3. regarder dans le journal de sécurité du compte GitHub et l'historique des commits de budget-data si le code a servi ;
+  4. noter dans ce fichier ce qui s'est passé et ce qui a été fait.
 
 ## Ne pas casser
 
